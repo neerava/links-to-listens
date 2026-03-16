@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — URL to Podcast</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #14141f;
+      --surface-hover: #1a1a2e;
+      --border: #2a2a3d;
+      --text: #e8e8f0;
+      --text-secondary: #8888a0;
+      --accent: #6c5ce7;
+      --accent-light: #a29bfe;
+      --green: #00b894;
+      --red: #e17055;
+      --yellow: #fdcb6e;
+      --radius: 12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Top bar ────────────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .topbar h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .topbar h1 svg { width: 22px; height: 22px; color: var(--accent); }
+
+    .topbar-links { display: flex; gap: 0.15rem; flex-wrap: wrap; }
+
+    .topbar-links a {
+      padding: 0.3rem 0.65rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .topbar-links a:hover { color: var(--text); background: var(--surface-hover); }
+
+    .topbar-links a.active {
+      color: var(--accent-light);
+      background: var(--accent-glow);
+    }
+
+    /* ── Stats bar ──────────────────────────────────── */
+    .stats {
+      display: flex;
+      gap: 1.5rem;
+      padding: 1rem 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .stat-value { color: var(--text); font-weight: 600; }
+
+    /* ── Table ──────────────────────────────────────── */
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 1.5rem 3rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    thead th {
+      text-align: left;
+      padding: 0.75rem 0.75rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+    }
+
+    tbody tr:hover { background: var(--surface-hover); }
+    tbody tr.hidden-row { opacity: 0.45; }
+
+    td {
+      padding: 0.75rem 0.75rem;
+      vertical-align: middle;
+    }
+
+    /* Thumbnail cell */
+    .td-thumb {
+      width: 56px;
+    }
+
+    .td-thumb img {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      object-fit: cover;
+      display: block;
+      background: var(--surface-hover);
+    }
+
+    .td-thumb .ph {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      background: var(--surface-hover);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .td-thumb .ph svg { width: 20px; height: 20px; color: var(--text-secondary); opacity: 0.4; }
+
+    /* Title + desc */
+    .td-info { max-width: 380px; }
+
+    .td-title {
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.15rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 380px;
+    }
+
+    .td-desc {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 380px;
+    }
+
+    /* Source URL */
+    .td-url {
+      font-size: 0.78rem;
+      max-width: 200px;
+    }
+
+    .td-url a {
+      color: var(--accent-light);
+      text-decoration: none;
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .td-url a:hover { text-decoration: underline; }
+
+    /* Date */
+    .td-date {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    /* Status badge */
+    .badge-visible {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 10px;
+      background: rgba(0,184,148,0.15);
+      color: var(--green);
+    }
+
+    .badge-hidden {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 10px;
+      background: rgba(253,203,110,0.15);
+      color: var(--yellow);
+    }
+
+    /* Actions */
+    .td-actions {
+      white-space: nowrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.35rem 0.65rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn:hover {
+      background: var(--surface-hover);
+      color: var(--text);
+      border-color: var(--text-secondary);
+    }
+
+    .btn svg { width: 14px; height: 14px; }
+
+    .btn-danger:hover { border-color: var(--red); color: var(--red); }
+    .btn-regen:hover { border-color: var(--green); color: var(--green); }
+    .btn-hide:hover { border-color: var(--yellow); color: var(--yellow); }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem 1.25rem;
+      font-size: 0.85rem;
+      color: var(--text);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      transform: translateY(120%);
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 200;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* Confirm dialog */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.active { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      max-width: 420px;
+      width: 90%;
+    }
+
+    .modal h3 { margin-bottom: 0.5rem; font-size: 1rem; }
+    .modal p { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem; }
+
+    .modal-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: flex-end;
+    }
+
+    .modal-actions .btn { padding: 0.45rem 1rem; }
+
+    /* Empty */
+    .empty {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-secondary);
+    }
+
+    @media (max-width: 768px) {
+      .td-url, .td-date { display: none; }
+      .td-info { max-width: 200px; }
+      .td-title, .td-desc { max-width: 200px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <h1>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      Episode Manager
+    </h1>
+    <div class="topbar-links">
+      <a href="/">Episodes</a>
+      <a href="/admin" class="active">Admin</a>
+      <a href="/generate-script">Generate Script</a>
+      <a href="/generate-audio">Generate Audio</a>
+    </div>
+  </div>
+
+  {% set visible = episodes | selectattr('hidden', 'equalto', false) | list %}
+  {% set hidden = episodes | selectattr('hidden', 'equalto', true) | list %}
+
+  <div class="stats">
+    <span><span class="stat-value">{{ episodes | length }}</span> total episodes</span>
+    <span><span class="stat-value">{{ visible | length }}</span> visible</span>
+    <span><span class="stat-value">{{ hidden | length }}</span> hidden</span>
+  </div>
+
+  <main>
+    {% if episodes %}
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Episode</th>
+          <th>Source</th>
+          <th>Date</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ep in episodes | reverse %}
+        <tr id="row-{{ ep.id }}" class="{% if ep.hidden %}hidden-row{% endif %}">
+          <td class="td-thumb">
+            {% if ep.thumbnail_url %}
+            <img src="/img?url={{ ep.thumbnail_url | urlencode }}" alt="" loading="lazy"
+                 onerror="this.outerHTML='<div class=ph><svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;1.5&quot;><path d=&quot;M9 18V5l12-2v13&quot;/><circle cx=&quot;6&quot; cy=&quot;18&quot; r=&quot;3&quot;/><circle cx=&quot;18&quot; cy=&quot;16&quot; r=&quot;3&quot;/></svg></div>'">
+            {% else %}
+            <div class="ph">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+              </svg>
+            </div>
+            {% endif %}
+          </td>
+          <td class="td-info">
+            <div class="td-title" title="{{ ep.title }}">{{ ep.title }}</div>
+            {% if ep.description %}
+            <div class="td-desc" title="{{ ep.description }}">{{ ep.description }}</div>
+            {% endif %}
+          </td>
+          <td class="td-url">
+            <a href="{{ ep.source_url }}" target="_blank" rel="noopener" title="{{ ep.source_url }}">{{ ep.source_url | truncate(45, True, '...') }}</a>
+          </td>
+          <td class="td-date">{{ ep.timestamp[:10] }}</td>
+          <td>
+            <span id="badge-{{ ep.id }}" class="{% if ep.hidden %}badge-hidden{% else %}badge-visible{% endif %}">
+              {{ 'Hidden' if ep.hidden else 'Visible' }}
+            </span>
+          </td>
+          <td class="td-actions">
+            <button class="btn btn-hide" onclick="toggleHide('{{ ep.id }}')" title="Toggle visibility">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <span id="hide-label-{{ ep.id }}">{{ 'Show' if ep.hidden else 'Hide' }}</span>
+            </button>
+            <button class="btn btn-regen" onclick="confirmRegen('{{ ep.id }}', '{{ ep.source_url | truncate(60, True, '...') }}')" title="Re-process from URL">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+              Regen
+            </button>
+            <button class="btn btn-danger" onclick="confirmDelete('{{ ep.id }}', '{{ ep.title | truncate(40, True, '...') }}')" title="Delete permanently">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+              Delete
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">
+      <h2>No episodes</h2>
+      <p>Add URLs to <code>urls.txt</code> and the watcher will process them.</p>
+    </div>
+    {% endif %}
+  </main>
+
+  <!-- Confirmation modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <h3 id="modalTitle">Confirm</h3>
+      <p id="modalMessage"></p>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-danger" id="modalConfirmBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    function showToast(msg, ms = 3000) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), ms);
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.remove('active');
+    }
+
+    function openModal(title, message, onConfirm) {
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalMessage').textContent = message;
+      const btn = document.getElementById('modalConfirmBtn');
+      btn.onclick = () => { closeModal(); onConfirm(); };
+      document.getElementById('modalOverlay').classList.add('active');
+    }
+
+    async function apiPost(url) {
+      const resp = await fetch(url, { method: 'POST' });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: 'Request failed' }));
+        throw new Error(err.detail || 'Request failed');
+      }
+      return resp.json();
+    }
+
+    async function toggleHide(id) {
+      try {
+        const data = await apiPost(`/admin/api/episodes/${id}/hide`);
+        const row = document.getElementById(`row-${id}`);
+        const badge = document.getElementById(`badge-${id}`);
+        const label = document.getElementById(`hide-label-${id}`);
+
+        if (data.hidden) {
+          row.classList.add('hidden-row');
+          badge.className = 'badge-hidden';
+          badge.textContent = 'Hidden';
+          label.textContent = 'Show';
+          showToast('Episode hidden from player');
+        } else {
+          row.classList.remove('hidden-row');
+          badge.className = 'badge-visible';
+          badge.textContent = 'Visible';
+          label.textContent = 'Hide';
+          showToast('Episode visible in player');
+        }
+      } catch (e) {
+        showToast('Error: ' + e.message);
+      }
+    }
+
+    function confirmDelete(id, title) {
+      openModal(
+        'Delete Episode',
+        `Permanently delete "${title}" and its audio file? This cannot be undone.`,
+        async () => {
+          try {
+            await apiPost(`/admin/api/episodes/${id}/delete`);
+            document.getElementById(`row-${id}`).remove();
+            showToast('Episode deleted');
+          } catch (e) {
+            showToast('Error: ' + e.message);
+          }
+        }
+      );
+    }
+
+    function confirmRegen(id, url) {
+      openModal(
+        'Regenerate Episode',
+        `Delete the current episode and re-process from: ${url}? This runs the full pipeline again.`,
+        async () => {
+          try {
+            const data = await apiPost(`/admin/api/episodes/${id}/regenerate`);
+            document.getElementById(`row-${id}`).remove();
+            showToast('Regeneration started — check back shortly');
+          } catch (e) {
+            showToast('Error: ' + e.message);
+          }
+        }
+      );
+    }
+
+    // Close modal on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+
+    // Close modal on overlay click
+    document.getElementById('modalOverlay').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+  </script>
+</body>
+</html>

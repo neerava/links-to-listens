@@ -1,0 +1,72 @@
+[
+  {
+    "id": "37166b29-ffda-4bbb-8484-b5a1df17dfa1",
+    "title": "Why SEO Now Requires Distribution",
+    "description": "AI search pulls from a wider and constantly shifting set of sources, making distribution strategies crucial for SEOs to maintain visibility.",
+    "source_url": "https://searchengineland.com/content-distribution-seo-471158",
+    "timestamp": "2026-03-15T12:21:35.853951+00:00",
+    "audio_path": "why-seo-now-requires-distribution-20260315T121448Z.mp3",
+    "thumbnail_url": "",
+    "hidden": false
+  },
+  {
+    "id": "c37e5041-ded3-4c92-868c-e2f6af815d70",
+    "title": "A New Kind of Turing Test for Artificial Intelligence",
+    "description": "A proposal for a new Turing test that evaluates an AI's ability to theorize about its hardware constraints, inspired by a sci-fi story by Stanislaw Lem.",
+    "source_url": "https://fortune.com/2026/03/14/motlbook-turing-test-agi-world-model-sentience/",
+    "timestamp": "2026-03-15T18:53:34.346641+00:00",
+    "audio_path": "a-new-kind-of-turing-test-for-artificial-intelligence-20260315T184220Z.mp3",
+    "thumbnail_url": "https://fortune.com/img-assets/wp-content/uploads/2026/03/dimitris.jpeg?resize=1200,600",
+    "hidden": false
+  },
+  {
+    "id": "ae033b91-9fbf-4e41-b5ac-ad05e8d7eb72",
+    "title": "MCP vs Skills: Two Approaches to Enabling AI Agents",
+    "description": "MCP and Skills are two approaches that enable AI agents to interact with external tools and access domain-specific knowledge. While they differ in how they provide information and execute tasks, they both offer ways to extend an AI agent's capabilities.",
+    "source_url": "https://www.marktechpost.com/2026/03/13/model-context-protocol-mcp-vs-ai-agent-skills-a-deep-dive-into-structured-tools-and-behavioral-guidance-for-llms/",
+    "timestamp": "2026-03-15T19:33:11.132498+00:00",
+    "audio_path": "mcp-vs-skills-two-approaches-to-enabling-ai-agents-20260315T191303Z.mp3",
+    "thumbnail_url": "https://www.marktechpost.com/wp-content/uploads/2026/03/blog-banner23-42.png",
+    "hidden": false
+  },
+  {
+    "id": "df370926-ed9e-4d92-a907-8389c3441d2b",
+    "title": "Visa is Ready for AI Agents",
+    "description": "The next trillion-dollar payments network won't have a checkout page, with machines paying machines in fractions of a cent. Autonomous AI agents will soon conduct far more online transactions than humans.",
+    "source_url": "https://www.coindesk.com/tech/2026/03/15/visa-is-ready-for-ai-agents-so-is-coinbase-they-re-building-very-different-internets",
+    "timestamp": "2026-03-16T07:00:16.172791+00:00",
+    "audio_path": "visa-is-ready-for-ai-agents-20260316T065622Z.mp3",
+    "thumbnail_url": "https://cdn.sanity.io/images/s3y3vcno/production/46755685f5e11aa30feec15f1afcf981d4ca73ad-4500x3001.jpg?auto=format&amp;w=960&amp;h=540&amp;crop=focalpoint&amp;fit=clip&amp;q=75&amp;fm=jpg",
+    "hidden": false
+  },
+  {
+    "id": "70de1e13-d3a3-49ca-8bd6-30a764506eab",
+    "title": "In this tutorial, we implement a Colab-ready version of the AutoResearch…",
+    "description": "In this tutorial, we implement a Colab-ready version of the AutoResearch framework originally proposed by Andrej Karpathy.",
+    "source_url": "https://www.marktechpost.com/2026/03/12/how-to-build-an-autonomous-machine-learning-research-loop-in-google-colab-using-andrej-karpathys-autoresearch-framework-for-hyperparameter-discovery-and-experiment-tracking/",
+    "timestamp": "2026-03-16T12:26:25.564564+00:00",
+    "audio_path": "in-this-tutorial-we-implement-a-colab-ready-version-of-the-autoresearch-20260316T122152Z.mp3",
+    "thumbnail_url": "https://www.marktechpost.com/wp-content/uploads/2026/03/blog-banner23-41-1024x731.png",
+    "hidden": true
+  },
+  {
+    "id": "1c00c0d5-2f7b-46fd-b75f-650106236aa2",
+    "title": "In this tutorial, we implement a Colab-ready version of the AutoResearch…",
+    "description": "In this tutorial, we implement a Colab-ready version of the AutoResearch framework originally proposed by Andrej Karpathy.",
+    "source_url": "https://www.marktechpost.com/2026/03/12/how-to-build-an-autonomous-machine-learning-research-loop-in-google-colab-using-andrej-karpathys-autoresearch-framework-for-hyperparameter-discovery-and-experiment-tracking/",
+    "timestamp": "2026-03-16T12:26:27.647430+00:00",
+    "audio_path": "in-this-tutorial-we-implement-a-colab-ready-version-of-the-autoresearch-20260316T122202Z.mp3",
+    "thumbnail_url": "https://www.marktechpost.com/wp-content/uploads/2026/03/blog-banner23-41-1024x731.png",
+    "hidden": true
+  },
+  {
+    "id": "9870de8b-7081-425d-bf0e-2fb9d53b52ac",
+    "title": "The Race to Establish an AI-Free Logo",
+    "description": "Organisations are racing to develop a universally recognised label for 'human-made' products and services, in response to fears that jobs or entire professions are being swept away by AI-powered automation.",
+    "source_url": "https://www.bbc.com/news/articles/cj0d6el50ppo?at_medium=RSS&at_campaign=rss",
+    "timestamp": "2026-03-16T19:21:47.623598+00:00",
+    "audio_path": "the-race-to-establish-an-ai-free-logo-20260316T191948Z.mp3",
+    "thumbnail_url": "https://ichef.bbci.co.uk/news/1024/branded_news/bb52/live/5b0b7900-1ed2-11f1-b8f6-b15aa2adfcf4.jpg",
+    "hidden": false
+  }
+]

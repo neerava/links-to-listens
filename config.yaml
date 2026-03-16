@@ -1,0 +1,28 @@
+ollama_model: llama3
+ollama_url: http://localhost:11434
+ollama_prompt: |
+  You are a podcast host. Convert the following article into a natural, conversational
+  audio script. No bullet points, no headers, no markdown formatting. The script should be 
+  written entirely as if speaking aloud to a listener. Begin directly with the content.
+
+tts_engine: vibevoice
+tts_voice: default
+
+# Path to a reference voice WAV file (24kHz mono recommended).
+# The model clones this voice for synthesis — better audio quality with a real sample.
+# Leave empty to use a silent fallback (lower quality).
+# Example: tts_voice_sample: ./voices/speaker.wav
+tts_voice_sample: ./voices/speaker3.wav
+
+scrape_timeout_sec: 20
+output_dir: ./output
+web_port: 8080
+script_api_port: 8081
+audio_api_port: 8082
+poll_interval_sec: 5
+max_input_tokens: 4096
+
+# Number of sentences processed per TTS inference call.
+# Lower values use less peak device memory; higher values may sound more natural.
+# Reduce to 5 if you still hit OOM.
+tts_chunk_sentences: 20

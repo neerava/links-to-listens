@@ -9,18 +9,18 @@ from __future__ import annotations
 import logging
 import re
 import signal
-import sys
 import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from audio_api import generate_audio
 from config import Settings, load_settings
 from metadata import MetadataStore
 from models import Episode
-from scraper import ScraperError, scrape
-from summarizer import SummarizerError, summarize, extract_metadata
-from tts import TTSError, synthesize
+from script_api import generate_script
+from scraper import ScraperError
+from tts import TTSError
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +47,6 @@ def _read_urls(path: Path) -> list[str]:
         ]
 
 
-def _derive_title(text: str) -> str:
-    """Fallback: derive a title from the first sentence of text."""
-    first = text.split(".")[0].strip()
-    return first[:80] if first else "Untitled"
-
-
 def _slugify(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "episode"
 
@@ -75,44 +69,36 @@ def process_url(url: str, settings: Settings, store: MetadataStore) -> Episode |
     """
     logger.info("Processing: %s", url)
 
-    # 1. Scrape
+    # 1. Scrape + summarize → podcast script
     try:
-        result = scrape(url, settings)
+        script_result = generate_script(url, settings)
     except ScraperError as exc:
         logger.error("Scrape failed for %s: %s", url, exc)
         _failed_urls.add(url)
         return None
-
-    text = result.text
-    thumbnail_url = result.thumbnail_url
-
-    # 2. Extract title and description from article text
-    meta = extract_metadata(text, settings)
-    title = meta.title
-    description = meta.description
-    logger.info("Article metadata: %r", title)
-
-    # 3. Summarize into podcast script
-    try:
-        script = summarize(text, settings)
-    except SummarizerError as exc:
-        logger.error("Summarize failed for %s: %s", url, exc)
+    except Exception as exc:  # SummarizerError or unexpected
+        logger.error("Script generation failed for %s: %s", url, exc)
         _failed_urls.add(url)
         return None
 
-    # 4. Build output path
+    title = script_result.title
+    description = script_result.description
+    thumbnail_url = script_result.thumbnail_url
+    logger.info("Article metadata: %r", title)
+
+    # 2. Build output path
     filename = _build_audio_filename(title)
     output_path = settings.output_path / filename
 
-    # 5. TTS
+    # 3. TTS → MP3
     try:
-        synthesize(script, output_path, settings)
+        generate_audio(script_result.script, output_path, settings)
     except TTSError as exc:
         logger.error("TTS failed for %s: %s", url, exc)
         _failed_urls.add(url)
         return None
 
-    # 6. Store metadata
+    # 4. Store metadata
     episode = Episode(
         id=str(uuid.uuid4()),
         title=title,

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Generate Audio — URL to Podcast</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: { surface: '#0d1117', card: '#161b22', border: '#30363d' }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; background: #0d1117; }
+    @keyframes indeterminate {
+      0%   { transform: translateX(-100%) scaleX(0.3); }
+      50%  { transform: translateX(0%)    scaleX(0.6); }
+      100% { transform: translateX(100%)  scaleX(0.3); }
+    }
+    .bar-indeterminate { animation: indeterminate 1.6s ease-in-out infinite; }
+    @keyframes fade-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .fade-in { animation: fade-in 0.3s ease forwards; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+    .drop-zone-active { border-color: #14b8a6 !important; background: rgba(20,184,166,0.06); }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100">
+
+  <!-- Navigation -->
+  <nav class="bg-card border-b border-border">
+    <div class="max-w-4xl mx-auto px-4 flex items-center gap-1 h-11">
+      <a href="/" class="flex items-center gap-2 text-slate-300 font-semibold text-sm mr-3 shrink-0">
+        <svg class="w-4 h-4 text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+        </svg>
+        URL to Podcast
+      </a>
+      <a href="/" class="px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition">Episodes</a>
+      <a href="/admin" class="px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition">Admin</a>
+      <a href="/generate-script" class="px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition">Generate Script</a>
+      <a href="/generate-audio" class="px-3 py-1.5 rounded-lg text-sm font-medium text-teal-300 bg-teal-500/10 border border-teal-500/20">Generate Audio</a>
+    </div>
+  </nav>
+
+  <!-- Top accent bar -->
+  <div class="h-0.5 w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500"></div>
+
+  <main class="max-w-2xl mx-auto px-4 py-10">
+
+    <!-- Header -->
+    <header class="mb-8">
+      <div class="flex items-center gap-3 mb-2">
+        <div class="w-9 h-9 rounded-xl bg-teal-600/20 border border-teal-500/30 flex items-center justify-center text-lg">🔊</div>
+        <h1 class="text-2xl font-semibold text-slate-50">Script to Podcast Audio</h1>
+      </div>
+      <p class="text-slate-400 text-sm ml-12">Paste a script or upload a <code class="text-teal-400 text-xs">.txt</code> file to generate a ready-to-publish MP3.</p>
+    </header>
+
+    <!-- Input card -->
+    <div class="bg-card border border-border rounded-2xl p-6 mb-6">
+
+      <!-- Tabs -->
+      <div class="flex gap-1 mb-4 bg-surface rounded-xl p-1 w-fit">
+        <button id="tab-paste" onclick="switchTab('paste')" class="px-4 py-1.5 text-sm font-medium rounded-lg transition">Paste Script</button>
+        <button id="tab-upload" onclick="switchTab('upload')" class="px-4 py-1.5 text-sm font-medium rounded-lg transition">Upload File</button>
+      </div>
+
+      <!-- Paste panel -->
+      <div id="panel-paste">
+        <textarea id="script-input" rows="10" placeholder="Paste your podcast script here…"
+          class="w-full bg-surface border border-border rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500/50 transition scrollbar-thin"></textarea>
+      </div>
+
+      <!-- Upload panel -->
+      <div id="panel-upload" class="hidden">
+        <div id="drop-zone"
+          ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)"
+          onclick="document.getElementById('file-input').click()"
+          class="border-2 border-dashed border-border rounded-xl p-10 text-center cursor-pointer transition hover:border-teal-500/50 hover:bg-teal-500/5">
+          <div class="text-3xl mb-2">📄</div>
+          <p class="text-slate-300 text-sm font-medium">Drop a <code class="text-teal-400">.txt</code> file here</p>
+          <p class="text-slate-600 text-xs mt-1">or click to browse</p>
+          <input id="file-input" type="file" accept=".txt,text/plain" class="hidden" onchange="onFileSelect(event)" />
+        </div>
+        <div id="file-chosen" class="hidden mt-3 flex items-center gap-2 bg-surface border border-border rounded-xl px-4 py-3">
+          <span class="text-teal-400">📄</span>
+          <span id="file-name" class="text-sm text-slate-300 flex-1 truncate"></span>
+          <button onclick="clearFile()" class="text-slate-500 hover:text-red-400 text-xs transition">✕ Clear</button>
+        </div>
+      </div>
+
+      <!-- Title + submit -->
+      <div class="mt-4">
+        <label class="block text-xs font-medium text-slate-500 mb-1.5">Episode title <span class="text-slate-600">(optional)</span></label>
+        <input id="title-input" type="text" placeholder="e.g. The Future of AI"
+          class="w-full bg-surface border border-border rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500/50 transition" />
+      </div>
+      <div class="mt-4">
+        <button id="submit-btn" onclick="submitJob()"
+          class="w-full py-3 bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          <span id="btn-icon">🎧</span>
+          <span id="btn-text">Generate Audio</span>
+        </button>
+        <p id="input-error" class="text-red-400 text-xs mt-2 hidden"></p>
+      </div>
+    </div>
+
+    <!-- Active job card -->
+    <div id="active-job" class="bg-card border border-border rounded-2xl p-6 mb-6 fade-in hidden">
+      <div id="state-pending" class="hidden">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
+          <span class="text-sm font-medium text-slate-300">Waiting in queue</span>
+          <span id="queue-pos" class="ml-auto text-xs text-slate-500"></span>
+        </div>
+        <div class="h-1 bg-surface rounded-full overflow-hidden">
+          <div class="h-full bg-amber-400/60 bar-indeterminate rounded-full"></div>
+        </div>
+      </div>
+
+      <div id="state-running" class="hidden">
+        <div class="flex items-center gap-3 mb-1">
+          <svg class="w-4 h-4 text-teal-400 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          <span class="text-sm font-medium text-slate-300">Synthesising audio…</span>
+          <span class="ml-auto text-xs text-slate-500">May take several minutes</span>
+        </div>
+        <p class="text-xs text-slate-600 mb-3 ml-7">You can close this page and come back — your job will still be here.</p>
+        <div class="h-1 bg-surface rounded-full overflow-hidden">
+          <div class="h-full bg-teal-500 bar-indeterminate rounded-full"></div>
+        </div>
+      </div>
+
+      <div id="state-done" class="hidden">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
+              <span class="text-sm font-medium text-emerald-400">Audio ready</span>
+            </div>
+            <p id="result-title" class="text-slate-100 font-semibold text-base"></p>
+          </div>
+          <a id="download-link" href="#"
+            class="shrink-0 flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-sm font-medium rounded-xl transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download MP3
+          </a>
+        </div>
+      </div>
+
+      <div id="state-failed" class="hidden">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-2 h-2 rounded-full bg-red-400"></div>
+          <span class="text-sm font-medium text-red-400">Generation failed</span>
+        </div>
+        <p id="result-error" class="text-slate-400 text-sm bg-surface border border-red-500/20 rounded-xl px-4 py-3"></p>
+      </div>
+    </div>
+
+    <!-- History -->
+    <section>
+      <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Previous Jobs</h2>
+      <div id="history-list" class="space-y-2">
+        <p id="history-empty" class="text-slate-600 text-sm">No previous jobs in this browser.</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const API_PREFIX = '{{ api_prefix }}';
+    const COOKIE_NAME = 'audio_job_ids';
+    const POLL_MS = 3000;
+    let _pollTimer = null;
+    let _activeJobId = null;
+    let _uploadedText = null;
+    let _activeTab = 'paste';
+
+    function switchTab(name) {
+      _activeTab = name;
+      ['paste','upload'].forEach(t => {
+        document.getElementById('tab-' + t).className =
+          'px-4 py-1.5 text-sm font-medium rounded-lg transition ' +
+          (t === name ? 'bg-card text-slate-100 shadow' : 'text-slate-500 hover:text-slate-300');
+        document.getElementById('panel-' + t).classList.toggle('hidden', t !== name);
+      });
+    }
+
+    function onDragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('drop-zone-active'); }
+    function onDragLeave() { document.getElementById('drop-zone').classList.remove('drop-zone-active'); }
+    function onDrop(e) { e.preventDefault(); document.getElementById('drop-zone').classList.remove('drop-zone-active'); const f = e.dataTransfer.files[0]; if (f) readFile(f); }
+    function onFileSelect(e) { const f = e.target.files[0]; if (f) readFile(f); }
+    function readFile(file) {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        _uploadedText = ev.target.result;
+        document.getElementById('file-chosen').classList.remove('hidden');
+        document.getElementById('file-name').textContent = file.name;
+        if (!document.getElementById('title-input').value)
+          document.getElementById('title-input').value = file.name.replace(/\.txt$/i, '');
+      };
+      reader.readAsText(file);
+    }
+    function clearFile() {
+      _uploadedText = null;
+      document.getElementById('file-chosen').classList.add('hidden');
+      document.getElementById('file-name').textContent = '';
+      document.getElementById('file-input').value = '';
+    }
+
+    function getJobIds() {
+      const c = document.cookie.split('; ').find(r => r.startsWith(COOKIE_NAME + '='));
+      if (!c) return [];
+      return decodeURIComponent(c.split('=')[1]).split(',').filter(Boolean);
+    }
+    function saveJobIds(ids) {
+      const exp = new Date(Date.now() + 90 * 86400 * 1000).toUTCString();
+      document.cookie = `${COOKIE_NAME}=${encodeURIComponent(ids.slice(0,20).join(','))}; expires=${exp}; path=/`;
+    }
+    function addJobId(id) { const ids = getJobIds(); if (!ids.includes(id)) ids.unshift(id); saveJobIds(ids); }
+
+    function timeAgo(iso) {
+      if (!iso) return '';
+      const m = Math.floor((Date.now() - new Date(iso)) / 60000);
+      if (m < 1) return 'just now'; if (m < 60) return `${m}m ago`;
+      const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+      return `${Math.floor(h / 24)}d ago`;
+    }
+
+    async function submitJob() {
+      document.getElementById('input-error').classList.add('hidden');
+      let script = '';
+      if (_activeTab === 'paste') {
+        script = document.getElementById('script-input').value.trim();
+        if (!script) { showInputError('Please paste a script.'); return; }
+      } else {
+        if (!_uploadedText) { showInputError('Please upload a .txt file.'); return; }
+        script = _uploadedText.trim();
+        if (!script) { showInputError('The uploaded file appears to be empty.'); return; }
+      }
+      const title = document.getElementById('title-input').value.trim() || 'podcast';
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      document.getElementById('btn-text').textContent = 'Submitting…';
+      try {
+        const res = await fetch(API_PREFIX + '/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ script, title })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const { job_id } = await res.json();
+        addJobId(job_id);
+        _activeJobId = job_id;
+        document.getElementById('active-job').classList.remove('hidden');
+        startPolling(job_id);
+      } catch (e) {
+        showInputError('Submission failed: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        document.getElementById('btn-text').textContent = 'Generate Audio';
+      }
+    }
+
+    function showInputError(msg) { const e = document.getElementById('input-error'); e.textContent = msg; e.classList.remove('hidden'); }
+
+    function setActiveState(name) {
+      ['pending','running','done','failed'].forEach(s =>
+        document.getElementById('state-' + s).classList.toggle('hidden', s !== name)
+      );
+    }
+
+    function renderActiveJob(job) {
+      document.getElementById('active-job').classList.remove('hidden');
+      switch (job.status) {
+        case 'pending':
+          setActiveState('pending');
+          const pos = job.queue_position;
+          document.getElementById('queue-pos').textContent = pos === 0 ? 'Next up' : `Position ${pos + 1} in queue`;
+          break;
+        case 'running': setActiveState('running'); break;
+        case 'done':
+          setActiveState('done');
+          document.getElementById('result-title').textContent = job.result?.title || 'Untitled';
+          document.getElementById('download-link').href = API_PREFIX + '/jobs/' + job.id + '/download';
+          refreshHistory();
+          break;
+        case 'failed':
+          setActiveState('failed');
+          document.getElementById('result-error').textContent = job.error || 'Unknown error';
+          refreshHistory();
+          break;
+      }
+    }
+
+    function startPolling(id) { stopPolling(); poll(id); }
+    function stopPolling() { if (_pollTimer) { clearTimeout(_pollTimer); _pollTimer = null; } }
+    async function poll(id) {
+      try {
+        const res = await fetch(API_PREFIX + '/jobs/' + id);
+        if (!res.ok) return;
+        const job = await res.json();
+        renderActiveJob(job);
+        if (job.status === 'pending' || job.status === 'running')
+          _pollTimer = setTimeout(() => poll(id), POLL_MS);
+      } catch { _pollTimer = setTimeout(() => poll(id), POLL_MS); }
+    }
+
+    async function refreshHistory() {
+      const ids = getJobIds();
+      const container = document.getElementById('history-list');
+      document.getElementById('history-empty').classList.toggle('hidden', ids.length > 0);
+      if (!ids.length) return;
+      const jobs = await Promise.all(ids.map(id =>
+        fetch(API_PREFIX + '/jobs/' + id).then(r => r.ok ? r.json() : null).catch(() => null)
+      ));
+      container.innerHTML = '';
+      jobs.forEach((job, i) => {
+        if (!job || ids[i] === _activeJobId) return;
+        container.appendChild(buildHistoryItem(job, ids[i]));
+      });
+    }
+
+    function statusDot(s) {
+      const cls = { pending:'bg-amber-400', running:'bg-teal-400 animate-pulse', done:'bg-emerald-400', failed:'bg-red-400' };
+      return `<span class="inline-block w-2 h-2 rounded-full ${cls[s]||'bg-slate-600'} mt-1 shrink-0"></span>`;
+    }
+
+    function buildHistoryItem(job, id) {
+      const el = document.createElement('div');
+      el.className = 'bg-card border border-border rounded-xl px-4 py-3 fade-in';
+      const title = job.result?.title || `Job ${id.slice(0,8)}…`;
+      const when = timeAgo(job.finished_at || job.created_at);
+      const canDownload = job.status === 'done' && job.file_available !== false;
+      el.innerHTML = `
+        <div class="flex items-center gap-3">
+          ${statusDot(job.status)}
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-slate-200 truncate">${esc(title)}</p>
+            <p class="text-xs text-slate-500 mt-0.5">${esc(when)}</p>
+          </div>
+          <div class="shrink-0">
+            ${canDownload
+              ? `<a href="${esc(API_PREFIX)}/jobs/${esc(id)}/download"
+                    class="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-teal-600/20 border border-teal-500/30 text-teal-400 rounded-lg hover:bg-teal-600/30 transition font-medium">
+                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                   Download
+                 </a>`
+              : job.status === 'failed'
+                ? `<span class="text-xs text-red-400">Failed</span>`
+                : `<span class="text-xs text-slate-500">In progress…</span>`
+            }
+          </div>
+        </div>`;
+      return el;
+    }
+
+    function esc(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      switchTab('paste');
+      const ids = getJobIds();
+      if (ids.length > 0) {
+        fetch(API_PREFIX + '/jobs/' + ids[0])
+          .then(r => r.ok ? r.json() : null)
+          .then(job => {
+            if (!job) return;
+            if (job.status === 'pending' || job.status === 'running') {
+              _activeJobId = ids[0];
+              renderActiveJob(job);
+              startPolling(ids[0]);
+            }
+          }).catch(() => {});
+      }
+      refreshHistory();
+    });
+  </script>
+</body>
+</html>

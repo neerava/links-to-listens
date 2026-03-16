@@ -1,0 +1,289 @@
+# Agentic Development Plan: URL-to-Podcast
+
+**Generated:** 2026-03-15
+**Updated:** 2026-03-16
+**Source:** PRD v1.3
+**Status:** All tasks completed
+
+---
+
+## 1. System Architecture
+
+```
+urls.txt (input)
+    │
+    ▼
+URLWatcher (watcher.py)              — polls every N seconds, tracks processed URLs
+    │  calls service functions in-process
+    │
+    ├─────────────────────────────────────────────────────────────────┐
+    │                                                                 │
+    ▼                                                                 │
+ScriptAPI (script_api.py — script_router)                            │
+    │  mounted at /generate-script inside app.py (port 8080)         │
+    │  JobQueue: single worker, FIFO                                  │
+    ├── generate_script(url, settings) → ScriptResult                 │
+    │       ├── WebScraper (scraper.py)    — httpx + trafilatura      │
+    │       └── OllamaSummarizer (summarizer.py) — local LLM          │
+    │                                                                 │
+    ▼                                                                 │
+AudioAPI (audio_api.py — audio_router)                               │
+    │  mounted at /generate-audio inside app.py (port 8080)          │
+    │  JobQueue: single worker, FIFO                                  │
+    └── generate_audio(script, path, settings) → Path                │
+            └── TTSEngine (tts.py) — VibeVoice                       │
+                   │  MP3 → output/api_audio/                        │
+                   │  (watcher: output/) ◄────────────────────────────┘
+                   ▼
+            MetadataStore (metadata.json)
+                   │
+                   ▼
+            WebUI + Admin + Script API + Audio API (app.py — port 8080)
+```
+
+**Data flow contracts:**
+- Scraper → Summarizer: plain UTF-8 string, max `max_input_tokens` tokens
+- Summarizer → TTS: plain prose string (no markdown/bullets)
+- TTS → Store: relative filename of generated MP3
+- Store → UI: list of `Episode` dicts from `metadata.json`
+- ScriptAPI → caller: `ScriptResult(title, description, thumbnail_url, script)`
+- AudioAPI → caller: `Path` to generated MP3
+
+---
+
+## 2. Tech Stack Decisions
+
+| Concern | Choice | Rationale |
+|---------|--------|-----------|
+| Language | Python 3.10+ | Mandated by NFR-01 |
+| Web scraping | `httpx` + `trafilatura` | `trafilatura` excels at main-content extraction; `httpx` for timeout control |
+| LLM runtime | Ollama REST API (`httpx`) | Mandated by NFR-02; no extra SDK needed |
+| TTS | VibeVoice Python API | Mandated by FR-10 |
+| Web framework | FastAPI + Jinja2 | Serves static MP3s, HTML UIs, and JSON APIs |
+| Job queue | In-memory threading (`job_queue.py`) | Simple, sufficient for single-user local use; no Redis/Celery needed |
+| Metadata store | Flat JSON (`metadata.json`) | Simple for v1; easy to inspect |
+| Config | `config.yaml` + PyYAML | Human-readable; env-var override pattern |
+| File watching | Polling loop (no inotify) | Cross-platform; sufficient at 5s intervals |
+| Testing | pytest + pytest-httpx + respx | Lightweight, async-compatible |
+| Packaging | `requirements.txt` | Simple; no packaging overhead for v1 |
+| Frontend | Tailwind CSS CDN + vanilla JS | Zero build step; Inter font via Google Fonts |
+
+---
+
+## 3. Development Milestones
+
+| Milestone | Deliverable | Status |
+|-----------|-------------|--------|
+| M0 — Scaffold | `models.py`, `config.py`, `config.yaml`, `requirements.txt` | ✅ Done |
+| M1 — Scraper | `scraper.py` with timeout + content extraction | ✅ Done |
+| M2 — Summarizer | `summarizer.py` with Ollama integration | ✅ Done |
+| M3 — TTS | `tts.py` wrapping VibeVoice | ✅ Done |
+| M4 — Metadata | `metadata.py` — thread-safe atomic JSON store | ✅ Done |
+| M5 — Web UI | `app.py` + `templates/index.html` + `templates/admin.html` | ✅ Done |
+| M6 — Watcher | `watcher.py` — poll loop, graceful shutdown | ✅ Done |
+| M7 — Hardening | Per-module logging, typed errors, config validation, path traversal guard | ✅ Done |
+| M8 — Launcher | `run.sh` — preflight checks, starts all services, cleans up on exit | ✅ Done |
+| M9 — API Split | `script_api.py` + `audio_api.py` as independent FastAPI apps | ✅ Done |
+| M10 — Job Queue | `job_queue.py` — single-worker FIFO, in-memory job store | ✅ Done |
+| M11 — Async UIs | `templates/script_ui.html` + `templates/audio_ui.html` with cookie tracking | ✅ Done |
+| M12 — Config | `script_api_port`, `audio_api_port` in config.yaml + validation | ✅ Done |
+| M13 — Port consolidation + nav | Routers mounted in app.py on port 8080; nav bar added to all four templates | ✅ Done |
+
+---
+
+## 4. Key Design Decisions
+
+### 4.1 Service function pattern
+Both `script_api.py` and `audio_api.py` expose their core logic as importable Python functions (`generate_script`, `generate_audio`). The watcher calls these directly (in-process, no HTTP overhead). External tools use the HTTP APIs. This means:
+- No code duplication between watcher and API code paths.
+- The watcher picks up any changes to the service functions automatically.
+- Unit tests can call the service functions directly without running a server.
+
+### 4.2 Single-worker job queue
+`job_queue.py` runs a background daemon thread that processes one job at a time. This is intentional:
+- LLM inference (Ollama) and TTS synthesis (VibeVoice) are CPU/GPU-bound and memory-intensive. Concurrent calls would cause OOM or severe slowdown.
+- The queue position is exposed in the API so UIs can show "Position 2 in queue".
+- Each API instance has its own queue — script generation and audio synthesis can proceed in parallel with each other, just not concurrently within the same stage.
+
+### 4.3 Cookie-based job tracking (no server-side sessions)
+Job IDs are stored in browser cookies (client-side). The server only needs `GET /generate-script/jobs/{id}` and `GET /generate-audio/jobs/{id}`. This means:
+- No session store required.
+- Works across page refreshes and tab closes.
+- Script job cookies and audio job cookies use distinct cookie names to avoid mixing (both UIs are on the same origin, port 8080).
+
+### 4.4 Audio file lifetime
+Audio files generated via the HTTP API are written to `output/api_audio/` and kept indefinitely. The `file_available` flag in the job status response reflects whether the file exists on disk. A future cleanup policy (e.g. TTL) can be added without changing the API contract.
+
+---
+
+## 5. Task List
+
+### Completed Tasks (v1)
+
+**TASK-01 — Project Scaffold**
+- `models.py`, `config.py`, `config.yaml`, `requirements.txt`
+
+**TASK-02 — Web Scraper (`scraper.py`)**
+- `scrape(url, settings) → ScrapeResult`
+- httpx + trafilatura, thumbnail extraction, truncation, `ScraperError`
+
+**TASK-03 — Ollama Summarizer (`summarizer.py`)**
+- `extract_metadata(text, settings) → ArticleMetadata`
+- `summarize(text, settings) → str`
+- JSON extraction with fallback, `SummarizerError`
+
+**TASK-04 — TTS Engine (`tts.py`)**
+- `synthesize(script, output_path, settings) → Path`
+- VibeVoice Python API, chunk-based inference, ffmpeg concat + MP3 encode
+
+**TASK-05 — Metadata Store (`metadata.py`)**
+- `MetadataStore`: `append`, `load`, `is_processed`, `get_by_id`, `update`, `delete`
+- Thread-safe atomic writes
+
+**TASK-06 — Web UI (`app.py` + templates)**
+- Public player, admin panel, audio serving, image proxy + cache
+- `/health` endpoint
+
+**TASK-07 — URL Watcher (`watcher.py`)**
+- Poll loop, graceful SIGINT/SIGTERM shutdown, per-URL failure isolation
+
+**TASK-08 — Logging & Error Handling**
+- Structured logging in every module
+
+**TASK-09 — Config Validation**
+- Fail-fast on bad Ollama URL, bad port, unwritable output dir, missing voice sample
+
+**TASK-10 — Tests**
+- 100+ passing (unit + integration, no external deps required)
+
+**TASK-11 — `run.sh` Launcher**
+- Preflight checks, starts all services, trap-based cleanup
+
+---
+
+### Completed Tasks (v1.2)
+
+**TASK-12 — API Split**
+- `script_api.py`: `generate_script()` function + FastAPI app with `POST /script`, `GET /script/jobs/{id}`, `GET /`, `GET /health`
+- `audio_api.py`: `generate_audio()` function + FastAPI app with `POST /audio`, `GET /audio/jobs/{id}`, `GET /audio/jobs/{id}/download`, `GET /`, `GET /health`
+
+**TASK-13 — Job Queue (`job_queue.py`)**
+- `Job` dataclass with `to_dict()` serialization
+- `JobQueue(worker_fn)`: `submit(**kwargs) → str`, `get(id) → Job | None`, `queue_position(id) → int`
+- Background daemon thread, thread-safe with `threading.Lock` + `threading.Event`
+
+**TASK-14 — Script UI (`templates/script_ui.html`)**
+- Dark theme (bg-gray-950, indigo accent)
+- URL input → `POST /script` → async polling
+- States: pending (queue position), running (indeterminate bar), done (script textarea + copy), failed
+- Cookie history with expand/copy per job
+
+**TASK-15 — Audio UI (`templates/audio_ui.html`)**
+- Dark theme (bg-gray-950, teal accent)
+- Two-tab input: paste textarea / drag-and-drop `.txt` upload
+- Async polling with states: pending, running (with "you can close this page" note), done (download button), failed
+- Cookie history with download links per completed job
+
+**TASK-16 — Config Additions**
+- `script_api_port: 8081` and `audio_api_port: 8082` in `Settings`, `config.yaml`
+- Port validation loop covers all three ports
+
+**TASK-17 — Watcher Refactor**
+- Removed direct imports of `scraper`, `summarizer`, `tts`
+- `process_url()` calls `generate_script()` → `generate_audio()` service functions
+- `_derive_title()` helper removed (now handled inside `generate_script` via `extract_metadata`)
+
+---
+
+### Completed Tasks (v1.3)
+
+**TASK-18 — Port Consolidation + Navigation Bar**
+- Consolidated Script and Audio APIs onto port 8080 via FastAPI router includes. `script_api.py` and `audio_api.py` now export `script_router` and `audio_router` (FastAPI `APIRouter` instances) that are included in `app.py` at prefixes `/generate-script` and `/generate-audio` respectively.
+- `run.sh` now starts one uvicorn process (`app:app` on port 8080) plus the watcher — previously three uvicorn processes.
+- All API endpoints updated to new paths: `POST /generate-script/submit`, `GET /generate-script/jobs/{id}`, `POST /generate-audio/submit`, `GET /generate-audio/jobs/{id}`, `GET /generate-audio/jobs/{id}/download`.
+- Added navigation bar to all four templates (`index.html`, `admin.html`, `script_ui.html`, `audio_ui.html`) for consistent in-app navigation.
+- `api_prefix` Jinja2 variable injected into `script_ui.html` and `audio_ui.html` so API call URLs are constructed portably. When mounted in `app.py` the prefix is `/generate-script` or `/generate-audio`; when running standalone the prefix is empty, preserving backwards compatibility for dev use.
+
+**TASK-19 — TTS Stability Fixes (`tts.py`)**
+- **Chunk device synchronization** — added `torch.mps.synchronize()` / `torch.cuda.synchronize()` before cache clearing in `_flush_device_cache()` so all async GPU/MPS operations from chunk N complete before chunk N+1 starts. Previously, async operations could bleed across chunk boundaries causing silent corruption or crashes.
+- **Suppressed per-chunk progress bars** — `show_progress_bar=False` passed to `model.generate()` to eliminate noisy tqdm output per chunk.
+- **Voice configuration** — voice is configured via `tts_voice_sample` (path to a WAV file) in `config.yaml`. If empty or the file is not found, a 3-second silent WAV is generated as a fallback. The VibeVoice GitHub pre-built `.pt` embeddings (Carter, Emma, etc.) are precomputed for the Realtime 0.5B streaming model and are incompatible with the 1.5B model this project uses; they should not be used.
+
+---
+
+## 6. Testing Strategy
+
+### Unit Tests (`tests/unit/`)
+| File | Tests |
+|------|-------|
+| `test_scraper.py` | Mock HTTP responses; timeout, 404, empty extraction |
+| `test_summarizer.py` | Mock Ollama API; prose output, error handling, metadata extraction, JSON parsing, fallback |
+| `test_tts.py` | Mock VibeVoice; path creation, TTSError on missing binary |
+| `test_metadata.py` | CRUD ops, atomic write, duplicate detection, empty file, backward compat |
+| `test_config.py` | Valid config loads, invalid values raise ConfigError |
+
+### Integration Tests (`tests/integration/`)
+| File | Tests |
+|------|-------|
+| `test_app.py` | FastAPI endpoints with seeded metadata |
+| `test_watcher.py` | One poll cycle with fully mocked pipeline |
+
+### Gaps (future work)
+- `test_job_queue.py` — submit/poll, single-worker guarantee, queue ordering
+- `test_script_api.py` — POST /script, GET /script/jobs/{id}, error cases
+- `test_audio_api.py` — POST /audio, GET /audio/jobs/{id}/download, 409/410 cases
+
+### Test Conventions
+- Use `pytest` with `pytest-asyncio` for async tests
+- Use `respx` for mocking `httpx` calls
+- Mark tests requiring real Ollama/VibeVoice with `@pytest.mark.integration`
+
+---
+
+## 7. Deployment Plan
+
+### Local Run (Primary Use Case)
+
+**Prerequisites:**
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+brew install ollama ffmpeg    # macOS
+ollama pull llama3
+pip install vibevoice
+```
+
+**Start all services (recommended):**
+```bash
+./run.sh
+```
+
+**Or manually in separate terminals:**
+```bash
+uvicorn app:app --host 0.0.0.0 --port 8080   # All-in-one: Web UI + admin + Script API + Audio API
+python watcher.py                              # URL watcher
+```
+
+**Standalone API modules (optional, for development):**
+```bash
+python script_api.py   # Script API standalone (uses script_api_port from config.yaml)
+python audio_api.py    # Audio API standalone (uses audio_api_port from config.yaml)
+```
+
+### Configuration Override
+```bash
+PODCAST_OLLAMA_MODEL=mistral ./run.sh
+PODCAST_SCRIPT_API_PORT=9081 python script_api.py   # standalone only
+```
+
+### Directory Permissions
+- `output/` — writable by running user
+- `output/api_audio/` — created automatically by `audio_api.py` on startup
+- `metadata.json` — writable by running user
+- `urls.txt` — writable by running user
+
+### Known Limitations (v1.3)
+- Job results are in-memory only; restart loses all pending/running/done job state.
+- No process supervision (`supervisord`, `launchd`) — add for persistent background operation.
+- No RSS feed.
+- No authentication on any endpoint.
