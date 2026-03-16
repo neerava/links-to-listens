@@ -1,184 +1,140 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Generate Audio — URL to Podcast</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'sans-serif'] },
-          colors: { surface: '#0d1117', card: '#161b22', border: '#30363d' }
-        }
-      }
-    }
-  </script>
-  <style>
-    body { font-family: 'Inter', sans-serif; background: #0d1117; }
-    @keyframes indeterminate {
-      0%   { transform: translateX(-100%) scaleX(0.3); }
-      50%  { transform: translateX(0%)    scaleX(0.6); }
-      100% { transform: translateX(100%)  scaleX(0.3); }
-    }
-    .bar-indeterminate { animation: indeterminate 1.6s ease-in-out infinite; }
-    @keyframes fade-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-    .fade-in { animation: fade-in 0.3s ease forwards; }
-    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
-    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-    .scrollbar-thin::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
-    .drop-zone-active { border-color: #14b8a6 !important; background: rgba(20,184,166,0.06); }
-  </style>
-</head>
-<body class="min-h-screen text-slate-100">
+{% extends "base.html" %}
+{% block title %}Generate Audio — URL to Podcast{% endblock %}
+{% block nav_active %}audio{% endblock %}
 
-  <!-- Navigation -->
-  <nav class="bg-card border-b border-border">
-    <div class="max-w-4xl mx-auto px-4 flex items-center gap-1 h-11">
-      <a href="/" class="flex items-center gap-2 text-slate-300 font-semibold text-sm mr-3 shrink-0">
-        <svg class="w-4 h-4 text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-        </svg>
-        URL to Podcast
-      </a>
-      <a href="/" class="px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition">Episodes</a>
-      <a href="/admin" class="px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition">Admin</a>
-      <a href="/generate-script" class="px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition">Generate Script</a>
-      <a href="/generate-audio" class="px-3 py-1.5 rounded-lg text-sm font-medium text-teal-300 bg-teal-500/10 border border-teal-500/20">Generate Audio</a>
-    </div>
-  </nav>
+{% block extra_css %}
+    .tool-wrap { max-width: 560px; margin: 0 auto; padding: 1.5rem 1rem 2rem; }
+    .tool-header { margin-bottom: 1.5rem; }
+    .tool-header h1 { font-size: 1.35rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+    .tool-header .icon-wrap { width: 36px; height: 36px; border-radius: 10px; background: var(--accent-glow); border: 1px solid rgba(108,92,231,0.3); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+    .tool-header p { color: var(--text-secondary); font-size: 0.9rem; margin-left: 46px; }
+    .tool-header code { font-size: 0.8rem; color: var(--accent-light); background: var(--surface); padding: 0.1rem 0.35rem; border-radius: 4px; }
+    .tool-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.25rem; }
+    .tool-tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; background: var(--bg); border-radius: 10px; padding: 0.25rem; width: fit-content; }
+    .tool-tab { padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 500; border-radius: 8px; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+    .tool-tab:hover { color: var(--text); }
+    .tool-tab.active { background: var(--surface); color: var(--text); }
+    .tool-card .hidden { display: none !important; }
+    .tool-card label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.35rem; }
+    .tool-input, .tool-textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 0.65rem 1rem; font-size: 0.9rem; color: var(--text); font-family: inherit; }
+    .tool-textarea { min-height: 180px; resize: vertical; }
+    .tool-input::placeholder, .tool-textarea::placeholder { color: var(--text-secondary); opacity: 0.7; }
+    .tool-input:focus, .tool-textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+    .drop-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.15s; }
+    .drop-zone:hover, .drop-zone.active { border-color: var(--accent); background: var(--accent-glow); }
+    .drop-zone .drop-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .drop-zone p { font-size: 0.9rem; color: var(--text-secondary); }
+    .drop-zone code { color: var(--accent-light); font-size: 0.85rem; }
+    .file-chosen { display: flex; align-items: center; gap: 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem 1rem; margin-top: 0.75rem; }
+    .file-chosen .file-name { flex: 1; font-size: 0.9rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-chosen .clear-btn { font-size: 0.8rem; color: var(--text-secondary); background: none; border: none; cursor: pointer; }
+    .file-chosen .clear-btn:hover { color: #e17055; }
+    .tool-btn { width: 100%; padding: 0.75rem; background: var(--accent); color: #fff; font-size: 0.9rem; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin-top: 1rem; }
+    .tool-btn:hover:not(:disabled) { background: var(--accent-light); }
+    .tool-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .tool-error { color: #e17055; font-size: 0.8rem; margin-top: 0.5rem; }
+    .tool-error.hidden { display: none; }
+    .state-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+    .state-row .spacer { flex: 1; }
+    .state-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .state-dot.pulse { animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .state-dot.success { background: #00b894; }
+    .state-dot.warn { background: #fdcb6e; }
+    .state-dot.err { background: #e17055; }
+    .state-dot.accent { background: var(--accent); }
+    .progress-track { height: 4px; background: var(--bg); border-radius: 4px; overflow: hidden; margin-top: 0.25rem; }
+    .progress-fill { height: 100%; border-radius: 4px; animation: barIndeterminate 1.6s ease-in-out infinite; }
+    @keyframes barIndeterminate { 0% { transform: translateX(-100%) scaleX(0.3); } 50% { transform: translateX(0) scaleX(0.6); } 100% { transform: translateX(100%) scaleX(0.3); } }
+    .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .result-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+    .result-title { font-size: 1rem; font-weight: 600; color: var(--text); }
+    .btn-download { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: var(--accent); color: #fff; font-size: 0.85rem; font-weight: 600; border-radius: 10px; text-decoration: none; transition: background 0.15s; }
+    .btn-download:hover { background: var(--accent-light); color: #fff; }
+    .btn-download svg { width: 16px; height: 16px; }
+    .tool-section-title { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin-bottom: 0.75rem; }
+    .history-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .history-item { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.75rem 1rem; }
+    .history-item-inner { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .history-item-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .history-item-body { flex: 1; min-width: 0; }
+    .history-item-title { font-size: 0.9rem; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .history-item-time { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.15rem; }
+    .history-item-actions { flex-shrink: 0; }
+    .history-dl { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.75rem; font-size: 0.8rem; font-weight: 500; background: var(--accent-glow); border: 1px solid rgba(108,92,231,0.3); color: var(--accent-light); border-radius: 8px; text-decoration: none; transition: all 0.15s; }
+    .history-dl:hover { background: var(--accent); color: #fff; }
+    .history-dl svg { width: 14px; height: 14px; }
+    .fade-in { animation: fadeIn 0.3s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+{% endblock %}
 
-  <!-- Top accent bar -->
-  <div class="h-0.5 w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500"></div>
-
-  <main class="max-w-2xl mx-auto px-4 py-10">
-
-    <!-- Header -->
-    <header class="mb-8">
-      <div class="flex items-center gap-3 mb-2">
-        <div class="w-9 h-9 rounded-xl bg-teal-600/20 border border-teal-500/30 flex items-center justify-center text-lg">🔊</div>
-        <h1 class="text-2xl font-semibold text-slate-50">Script to Podcast Audio</h1>
-      </div>
-      <p class="text-slate-400 text-sm ml-12">Paste a script or upload a <code class="text-teal-400 text-xs">.txt</code> file to generate a ready-to-publish MP3.</p>
+{% block content %}
+  <div class="tool-wrap">
+    <header class="tool-header">
+      <h1><span class="icon-wrap">🔊</span> Script to Podcast Audio</h1>
+      <p>Paste a script or upload a <code>.txt</code> file to generate a ready-to-publish MP3.</p>
     </header>
 
-    <!-- Input card -->
-    <div class="bg-card border border-border rounded-2xl p-6 mb-6">
-
-      <!-- Tabs -->
-      <div class="flex gap-1 mb-4 bg-surface rounded-xl p-1 w-fit">
-        <button id="tab-paste" onclick="switchTab('paste')" class="px-4 py-1.5 text-sm font-medium rounded-lg transition">Paste Script</button>
-        <button id="tab-upload" onclick="switchTab('upload')" class="px-4 py-1.5 text-sm font-medium rounded-lg transition">Upload File</button>
+    <div class="tool-card">
+      <div class="tool-tabs">
+        <button type="button" id="tab-paste" class="tool-tab active" onclick="switchTab('paste')">Paste Script</button>
+        <button type="button" id="tab-upload" class="tool-tab" onclick="switchTab('upload')">Upload File</button>
       </div>
-
-      <!-- Paste panel -->
       <div id="panel-paste">
-        <textarea id="script-input" rows="10" placeholder="Paste your podcast script here…"
-          class="w-full bg-surface border border-border rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500/50 transition scrollbar-thin"></textarea>
+        <textarea id="script-input" class="tool-textarea" rows="10" placeholder="Paste your podcast script here…"></textarea>
       </div>
-
-      <!-- Upload panel -->
       <div id="panel-upload" class="hidden">
-        <div id="drop-zone"
-          ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)"
-          onclick="document.getElementById('file-input').click()"
-          class="border-2 border-dashed border-border rounded-xl p-10 text-center cursor-pointer transition hover:border-teal-500/50 hover:bg-teal-500/5">
-          <div class="text-3xl mb-2">📄</div>
-          <p class="text-slate-300 text-sm font-medium">Drop a <code class="text-teal-400">.txt</code> file here</p>
-          <p class="text-slate-600 text-xs mt-1">or click to browse</p>
+        <div id="drop-zone" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)" onclick="document.getElementById('file-input').click()">
+          <div class="drop-icon">📄</div>
+          <p>Drop a <code>.txt</code> file here</p>
+          <p style="font-size:0.8rem;margin-top:0.25rem;">or click to browse</p>
           <input id="file-input" type="file" accept=".txt,text/plain" class="hidden" onchange="onFileSelect(event)" />
         </div>
-        <div id="file-chosen" class="hidden mt-3 flex items-center gap-2 bg-surface border border-border rounded-xl px-4 py-3">
-          <span class="text-teal-400">📄</span>
-          <span id="file-name" class="text-sm text-slate-300 flex-1 truncate"></span>
-          <button onclick="clearFile()" class="text-slate-500 hover:text-red-400 text-xs transition">✕ Clear</button>
+        <div id="file-chosen" class="file-chosen hidden">
+          <span>📄</span>
+          <span id="file-name" class="file-name"></span>
+          <button type="button" class="clear-btn" onclick="clearFile()">✕ Clear</button>
         </div>
       </div>
-
-      <!-- Title + submit -->
-      <div class="mt-4">
-        <label class="block text-xs font-medium text-slate-500 mb-1.5">Episode title <span class="text-slate-600">(optional)</span></label>
-        <input id="title-input" type="text" placeholder="e.g. The Future of AI"
-          class="w-full bg-surface border border-border rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500/50 transition" />
-      </div>
-      <div class="mt-4">
-        <button id="submit-btn" onclick="submitJob()"
-          class="w-full py-3 bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-          <span id="btn-icon">🎧</span>
-          <span id="btn-text">Generate Audio</span>
-        </button>
-        <p id="input-error" class="text-red-400 text-xs mt-2 hidden"></p>
-      </div>
+      <label for="title-input" style="margin-top:1rem;">Episode title <span style="color:var(--text-secondary);">(optional)</span></label>
+      <input id="title-input" type="text" class="tool-input" placeholder="e.g. The Future of AI" style="margin-top:0.35rem;" />
+      <button id="submit-btn" type="button" class="tool-btn" onclick="submitJob()"><span id="btn-icon">🎧</span><span id="btn-text">Generate Audio</span></button>
+      <p id="input-error" class="tool-error hidden"></p>
     </div>
 
-    <!-- Active job card -->
-    <div id="active-job" class="bg-card border border-border rounded-2xl p-6 mb-6 fade-in hidden">
+    <div id="active-job" class="tool-card fade-in hidden">
       <div id="state-pending" class="hidden">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
-          <span class="text-sm font-medium text-slate-300">Waiting in queue</span>
-          <span id="queue-pos" class="ml-auto text-xs text-slate-500"></span>
-        </div>
-        <div class="h-1 bg-surface rounded-full overflow-hidden">
-          <div class="h-full bg-amber-400/60 bar-indeterminate rounded-full"></div>
-        </div>
+        <div class="state-row"><span class="state-dot warn pulse"></span><span>Waiting in queue</span><span class="spacer"></span><span id="queue-pos" class="state-meta"></span></div>
+        <div class="progress-track"><div class="progress-fill" style="background: rgba(253,203,110,0.6); width: 40%;"></div></div>
       </div>
-
       <div id="state-running" class="hidden">
-        <div class="flex items-center gap-3 mb-1">
-          <svg class="w-4 h-4 text-teal-400 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-          </svg>
-          <span class="text-sm font-medium text-slate-300">Synthesising audio…</span>
-          <span class="ml-auto text-xs text-slate-500">May take several minutes</span>
-        </div>
-        <p class="text-xs text-slate-600 mb-3 ml-7">You can close this page and come back — your job will still be here.</p>
-        <div class="h-1 bg-surface rounded-full overflow-hidden">
-          <div class="h-full bg-teal-500 bar-indeterminate rounded-full"></div>
-        </div>
+        <div class="state-row"><span class="spinner"></span><span>Synthesising audio…</span><span class="spacer"></span><span class="state-meta">May take several minutes</span></div>
+        <p style="font-size:0.8rem;color:var(--text-secondary);margin:0.25rem 0 0.75rem 1.75rem;">You can close this page and come back — your job will still be here.</p>
+        <div class="progress-track"><div class="progress-fill" style="background: var(--accent); width: 40%;"></div></div>
       </div>
-
       <div id="state-done" class="hidden">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <div class="flex items-center gap-2 mb-1">
-              <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
-              <span class="text-sm font-medium text-emerald-400">Audio ready</span>
-            </div>
-            <p id="result-title" class="text-slate-100 font-semibold text-base"></p>
-          </div>
-          <a id="download-link" href="#"
-            class="shrink-0 flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-sm font-medium rounded-xl transition">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            Download MP3
-          </a>
+        <div class="result-head">
+          <div><div class="state-row"><span class="state-dot success"></span><span style="font-weight:600;color:var(--accent-light);">Audio ready</span></div><p id="result-title" class="result-title"></p></div>
+          <a id="download-link" href="#" class="btn-download"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> Download MP3</a>
         </div>
       </div>
-
       <div id="state-failed" class="hidden">
-        <div class="flex items-center gap-3 mb-2">
-          <div class="w-2 h-2 rounded-full bg-red-400"></div>
-          <span class="text-sm font-medium text-red-400">Generation failed</span>
-        </div>
-        <p id="result-error" class="text-slate-400 text-sm bg-surface border border-red-500/20 rounded-xl px-4 py-3"></p>
+        <div class="state-row"><span class="state-dot err"></span><span style="color:#e17055;">Generation failed</span></div>
+        <p id="result-error" style="font-size:0.85rem;color:var(--text-secondary);background:var(--bg);border:1px solid rgba(225,112,85,0.2);border-radius:10px;padding:0.75rem 1rem;"></p>
       </div>
     </div>
 
-    <!-- History -->
     <section>
-      <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Previous Jobs</h2>
-      <div id="history-list" class="space-y-2">
-        <p id="history-empty" class="text-slate-600 text-sm">No previous jobs in this browser.</p>
+      <h2 class="tool-section-title">Previous Jobs</h2>
+      <div id="history-list" class="history-list">
+        <p id="history-empty" style="font-size:0.85rem;color:var(--text-secondary);">No previous jobs in this browser.</p>
       </div>
     </section>
-  </main>
+  </div>
+{% endblock %}
 
+{% block extra_js %}
   <script>
     const API_PREFIX = '{{ api_prefix }}';
     const COOKIE_NAME = 'audio_job_ids';
@@ -190,110 +146,69 @@
 
     function switchTab(name) {
       _activeTab = name;
-      ['paste','upload'].forEach(t => {
-        document.getElementById('tab-' + t).className =
-          'px-4 py-1.5 text-sm font-medium rounded-lg transition ' +
-          (t === name ? 'bg-card text-slate-100 shadow' : 'text-slate-500 hover:text-slate-300');
+      ['paste','upload'].forEach(function(t) {
+        document.getElementById('tab-' + t).className = 'tool-tab' + (t === name ? ' active' : '');
         document.getElementById('panel-' + t).classList.toggle('hidden', t !== name);
       });
     }
 
-    function onDragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('drop-zone-active'); }
-    function onDragLeave() { document.getElementById('drop-zone').classList.remove('drop-zone-active'); }
-    function onDrop(e) { e.preventDefault(); document.getElementById('drop-zone').classList.remove('drop-zone-active'); const f = e.dataTransfer.files[0]; if (f) readFile(f); }
-    function onFileSelect(e) { const f = e.target.files[0]; if (f) readFile(f); }
+    function onDragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('active'); }
+    function onDragLeave() { document.getElementById('drop-zone').classList.remove('active'); }
+    function onDrop(e) { e.preventDefault(); document.getElementById('drop-zone').classList.remove('active'); var f = e.dataTransfer.files[0]; if (f) readFile(f); }
+    function onFileSelect(e) { var f = e.target.files[0]; if (f) readFile(f); }
     function readFile(file) {
-      const reader = new FileReader();
-      reader.onload = ev => {
+      var reader = new FileReader();
+      reader.onload = function(ev) {
         _uploadedText = ev.target.result;
         document.getElementById('file-chosen').classList.remove('hidden');
         document.getElementById('file-name').textContent = file.name;
-        if (!document.getElementById('title-input').value)
-          document.getElementById('title-input').value = file.name.replace(/\.txt$/i, '');
+        if (!document.getElementById('title-input').value) document.getElementById('title-input').value = file.name.replace(/\.txt$/i, '');
       };
       reader.readAsText(file);
     }
-    function clearFile() {
-      _uploadedText = null;
-      document.getElementById('file-chosen').classList.add('hidden');
-      document.getElementById('file-name').textContent = '';
-      document.getElementById('file-input').value = '';
-    }
+    function clearFile() { _uploadedText = null; document.getElementById('file-chosen').classList.add('hidden'); document.getElementById('file-name').textContent = ''; document.getElementById('file-input').value = ''; }
 
-    function getJobIds() {
-      const c = document.cookie.split('; ').find(r => r.startsWith(COOKIE_NAME + '='));
-      if (!c) return [];
-      return decodeURIComponent(c.split('=')[1]).split(',').filter(Boolean);
-    }
-    function saveJobIds(ids) {
-      const exp = new Date(Date.now() + 90 * 86400 * 1000).toUTCString();
-      document.cookie = `${COOKIE_NAME}=${encodeURIComponent(ids.slice(0,20).join(','))}; expires=${exp}; path=/`;
-    }
-    function addJobId(id) { const ids = getJobIds(); if (!ids.includes(id)) ids.unshift(id); saveJobIds(ids); }
-
-    function timeAgo(iso) {
-      if (!iso) return '';
-      const m = Math.floor((Date.now() - new Date(iso)) / 60000);
-      if (m < 1) return 'just now'; if (m < 60) return `${m}m ago`;
-      const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
-      return `${Math.floor(h / 24)}d ago`;
-    }
+    function getJobIds() { var c = document.cookie.split('; ').find(function(r) { return r.startsWith(COOKIE_NAME + '='); }); if (!c) return []; return decodeURIComponent(c.split('=')[1]).split(',').filter(Boolean); }
+    function saveJobIds(ids) { var exp = new Date(Date.now() + 90 * 86400 * 1000).toUTCString(); document.cookie = COOKIE_NAME + '=' + encodeURIComponent(ids.slice(0, 20).join(',')) + '; expires=' + exp + '; path=/'; }
+    function addJobId(id) { var ids = getJobIds(); if (ids.indexOf(id) === -1) ids.unshift(id); saveJobIds(ids); }
+    function timeAgo(iso) { if (!iso) return ''; var m = Math.floor((Date.now() - new Date(iso)) / 60000); if (m < 1) return 'just now'; if (m < 60) return m + 'm ago'; var h = Math.floor(m / 60); if (h < 24) return h + 'h ago'; return Math.floor(h / 24) + 'd ago'; }
 
     async function submitJob() {
       document.getElementById('input-error').classList.add('hidden');
-      let script = '';
-      if (_activeTab === 'paste') {
-        script = document.getElementById('script-input').value.trim();
-        if (!script) { showInputError('Please paste a script.'); return; }
-      } else {
-        if (!_uploadedText) { showInputError('Please upload a .txt file.'); return; }
-        script = _uploadedText.trim();
-        if (!script) { showInputError('The uploaded file appears to be empty.'); return; }
-      }
-      const title = document.getElementById('title-input').value.trim() || 'podcast';
-      const btn = document.getElementById('submit-btn');
+      var script = '';
+      if (_activeTab === 'paste') { script = document.getElementById('script-input').value.trim(); if (!script) { showInputError('Please paste a script.'); return; } }
+      else { if (!_uploadedText) { showInputError('Please upload a .txt file.'); return; } script = _uploadedText.trim(); if (!script) { showInputError('The uploaded file appears to be empty.'); return; } }
+      var title = document.getElementById('title-input').value.trim() || 'podcast';
+      var btn = document.getElementById('submit-btn');
       btn.disabled = true;
       document.getElementById('btn-text').textContent = 'Submitting…';
       try {
-        const res = await fetch(API_PREFIX + '/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ script, title })
-        });
+        var res = await fetch(API_PREFIX + '/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: script, title: title }) });
         if (!res.ok) throw new Error(await res.text());
-        const { job_id } = await res.json();
-        addJobId(job_id);
-        _activeJobId = job_id;
+        var data = await res.json();
+        addJobId(data.job_id);
+        _activeJobId = data.job_id;
         document.getElementById('active-job').classList.remove('hidden');
-        startPolling(job_id);
-      } catch (e) {
-        showInputError('Submission failed: ' + e.message);
-      } finally {
-        btn.disabled = false;
-        document.getElementById('btn-text').textContent = 'Generate Audio';
-      }
+        startPolling(data.job_id);
+      } catch (e) { showInputError('Submission failed: ' + e.message); }
+      btn.disabled = false;
+      document.getElementById('btn-text').textContent = 'Generate Audio';
     }
+    function showInputError(msg) { var el = document.getElementById('input-error'); el.textContent = msg; el.classList.remove('hidden'); }
 
-    function showInputError(msg) { const e = document.getElementById('input-error'); e.textContent = msg; e.classList.remove('hidden'); }
-
-    function setActiveState(name) {
-      ['pending','running','done','failed'].forEach(s =>
-        document.getElementById('state-' + s).classList.toggle('hidden', s !== name)
-      );
-    }
+    function setActiveState(name) { ['pending','running','done','failed'].forEach(function(s) { document.getElementById('state-' + s).classList.toggle('hidden', s !== name); }); }
 
     function renderActiveJob(job) {
       document.getElementById('active-job').classList.remove('hidden');
       switch (job.status) {
         case 'pending':
           setActiveState('pending');
-          const pos = job.queue_position;
-          document.getElementById('queue-pos').textContent = pos === 0 ? 'Next up' : `Position ${pos + 1} in queue`;
+          document.getElementById('queue-pos').textContent = (job.queue_position === 0 ? 'Next up' : 'Position ' + (job.queue_position + 1) + ' in queue');
           break;
         case 'running': setActiveState('running'); break;
         case 'done':
           setActiveState('done');
-          document.getElementById('result-title').textContent = job.result?.title || 'Untitled';
+          document.getElementById('result-title').textContent = (job.result && job.result.title) || 'Untitled';
           document.getElementById('download-link').href = API_PREFIX + '/jobs/' + job.id + '/download';
           refreshHistory();
           break;
@@ -309,85 +224,58 @@
     function stopPolling() { if (_pollTimer) { clearTimeout(_pollTimer); _pollTimer = null; } }
     async function poll(id) {
       try {
-        const res = await fetch(API_PREFIX + '/jobs/' + id);
+        var res = await fetch(API_PREFIX + '/jobs/' + id);
         if (!res.ok) return;
-        const job = await res.json();
+        var job = await res.json();
         renderActiveJob(job);
-        if (job.status === 'pending' || job.status === 'running')
-          _pollTimer = setTimeout(() => poll(id), POLL_MS);
-      } catch { _pollTimer = setTimeout(() => poll(id), POLL_MS); }
+        if (job.status === 'pending' || job.status === 'running') _pollTimer = setTimeout(function() { poll(id); }, POLL_MS);
+      } catch (e) { _pollTimer = setTimeout(function() { poll(id); }, POLL_MS); }
     }
 
     async function refreshHistory() {
-      const ids = getJobIds();
-      const container = document.getElementById('history-list');
+      var ids = getJobIds();
+      var container = document.getElementById('history-list');
       document.getElementById('history-empty').classList.toggle('hidden', ids.length > 0);
       if (!ids.length) return;
-      const jobs = await Promise.all(ids.map(id =>
-        fetch(API_PREFIX + '/jobs/' + id).then(r => r.ok ? r.json() : null).catch(() => null)
-      ));
+      var jobs = await Promise.all(ids.map(function(id) { return fetch(API_PREFIX + '/jobs/' + id).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; }); }));
       container.innerHTML = '';
-      jobs.forEach((job, i) => {
+      jobs.forEach(function(job, i) {
         if (!job || ids[i] === _activeJobId) return;
         container.appendChild(buildHistoryItem(job, ids[i]));
       });
     }
 
-    function statusDot(s) {
-      const cls = { pending:'bg-amber-400', running:'bg-teal-400 animate-pulse', done:'bg-emerald-400', failed:'bg-red-400' };
-      return `<span class="inline-block w-2 h-2 rounded-full ${cls[s]||'bg-slate-600'} mt-1 shrink-0"></span>`;
-    }
+    function dotClass(s) { if (s === 'pending') return 'warn pulse'; if (s === 'running') return 'accent pulse'; if (s === 'done') return 'success'; if (s === 'failed') return 'err'; return ''; }
 
     function buildHistoryItem(job, id) {
-      const el = document.createElement('div');
-      el.className = 'bg-card border border-border rounded-xl px-4 py-3 fade-in';
-      const title = job.result?.title || `Job ${id.slice(0,8)}…`;
-      const when = timeAgo(job.finished_at || job.created_at);
-      const canDownload = job.status === 'done' && job.file_available !== false;
-      el.innerHTML = `
-        <div class="flex items-center gap-3">
-          ${statusDot(job.status)}
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-slate-200 truncate">${esc(title)}</p>
-            <p class="text-xs text-slate-500 mt-0.5">${esc(when)}</p>
-          </div>
-          <div class="shrink-0">
-            ${canDownload
-              ? `<a href="${esc(API_PREFIX)}/jobs/${esc(id)}/download"
-                    class="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-teal-600/20 border border-teal-500/30 text-teal-400 rounded-lg hover:bg-teal-600/30 transition font-medium">
-                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                   Download
-                 </a>`
-              : job.status === 'failed'
-                ? `<span class="text-xs text-red-400">Failed</span>`
-                : `<span class="text-xs text-slate-500">In progress…</span>`
-            }
-          </div>
-        </div>`;
+      var el = document.createElement('div');
+      el.className = 'history-item fade-in';
+      var title = (job.result && job.result.title) || ('Job ' + id.slice(0, 8) + '…');
+      var when = timeAgo(job.finished_at || job.created_at);
+      var canDownload = job.status === 'done' && job.file_available !== false;
+      el.innerHTML =
+        '<div class="history-item-inner">' +
+        '<span class="history-item-dot state-dot ' + dotClass(job.status) + '"></span>' +
+        '<div class="history-item-body"><p class="history-item-title">' + esc(title) + '</p><p class="history-item-time">' + esc(when) + '</p></div>' +
+        '<div class="history-item-actions">' +
+        (canDownload ? '<a href="' + esc(API_PREFIX) + '/jobs/' + esc(id) + '/download" class="history-dl"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> Download</a>' : '') +
+        (job.status === 'failed' ? '<span style="font-size:0.8rem;color:#e17055;">Failed</span>' : '') +
+        ((job.status === 'pending' || job.status === 'running') ? '<span style="font-size:0.8rem;color:var(--text-secondary);">In progress…</span>' : '') +
+        '</div></div>';
       return el;
     }
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-    function esc(s) {
-      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', function() {
       switchTab('paste');
-      const ids = getJobIds();
+      var ids = getJobIds();
       if (ids.length > 0) {
-        fetch(API_PREFIX + '/jobs/' + ids[0])
-          .then(r => r.ok ? r.json() : null)
-          .then(job => {
-            if (!job) return;
-            if (job.status === 'pending' || job.status === 'running') {
-              _activeJobId = ids[0];
-              renderActiveJob(job);
-              startPolling(ids[0]);
-            }
-          }).catch(() => {});
+        fetch(API_PREFIX + '/jobs/' + ids[0]).then(function(r) { return r.ok ? r.json() : null; }).then(function(job) {
+          if (!job) return;
+          if (job.status === 'pending' || job.status === 'running') { _activeJobId = ids[0]; renderActiveJob(job); startPolling(ids[0]); }
+        }).catch(function() {});
       }
       refreshHistory();
     });
   </script>
-</body>
-</html>
+{% endblock %}

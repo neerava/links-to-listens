@@ -1,155 +1,127 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Generate Script — URL to Podcast</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'sans-serif'] },
-          colors: { surface: '#0d1117', card: '#161b22', border: '#30363d' }
-        }
-      }
+{% extends "base.html" %}
+{% block title %}Generate Script — URL to Podcast{% endblock %}
+{% block nav_active %}script{% endblock %}
+
+{% block extra_css %}
+    .tool-wrap { max-width: 560px; margin: 0 auto; padding: 1.5rem 1rem 2rem; }
+    .tool-header { margin-bottom: 1.5rem; }
+    .tool-header h1 { font-size: 1.35rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+    .tool-header .icon-wrap { width: 36px; height: 36px; border-radius: 10px; background: var(--accent-glow); border: 1px solid rgba(108,92,231,0.3); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+    .tool-header p { color: var(--text-secondary); font-size: 0.9rem; margin-left: 46px; }
+    .tool-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.25rem; }
+    .tool-card label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.5rem; }
+    .tool-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .tool-input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 0.65rem 1rem; font-size: 0.9rem; color: var(--text); }
+    .tool-input::placeholder { color: var(--text-secondary); opacity: 0.7; }
+    .tool-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+    .tool-btn { padding: 0.65rem 1.25rem; background: var(--accent); color: #fff; font-size: 0.9rem; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; transition: background 0.15s; display: inline-flex; align-items: center; gap: 0.4rem; }
+    .tool-btn:hover:not(:disabled) { background: var(--accent-light); }
+    .tool-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .tool-error { color: #e17055; font-size: 0.8rem; margin-top: 0.5rem; }
+    .tool-error.hidden { display: none; }
+    .tool-card .hidden { display: none !important; }
+    .state-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+    .state-row .spacer { flex: 1; }
+    .state-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .state-dot.pulse { animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .state-dot.success { background: #00b894; }
+    .state-dot.warn { background: #fdcb6e; }
+    .state-dot.err { background: #e17055; }
+    .state-dot.accent { background: var(--accent); }
+    .progress-track { height: 4px; background: var(--bg); border-radius: 4px; overflow: hidden; margin-top: 0.25rem; }
+    .progress-fill { height: 100%; border-radius: 4px; animation: barIndeterminate 1.6s ease-in-out infinite; }
+    @keyframes barIndeterminate { 0% { transform: translateX(-100%) scaleX(0.3); } 50% { transform: translateX(0) scaleX(0.6); } 100% { transform: translateX(100%) scaleX(0.3); } }
+    .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .result-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem; }
+    .result-title { font-size: 1rem; font-weight: 600; color: var(--text); }
+    .result-desc { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.2rem; }
+    .result-textarea { width: 100%; min-height: 240px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1rem; font-size: 0.85rem; color: var(--text-secondary); resize: vertical; font-family: inherit; }
+    .result-textarea:focus { outline: none; border-color: var(--border); }
+    .btn-secondary { padding: 0.4rem 0.75rem; font-size: 0.8rem; font-weight: 500; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+    .btn-secondary:hover { background: var(--surface-hover); color: var(--text); }
+    .tool-section-title { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin-bottom: 0.75rem; }
+    .history-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .history-item { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.75rem 1rem; }
+    .history-item-inner { display: flex; align-items: flex-start; gap: 0.75rem; flex-wrap: wrap; }
+    .history-item-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 0.35rem; }
+    .history-item-body { flex: 1; min-width: 0; }
+    .history-item-title { font-size: 0.9rem; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .history-item-time { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.15rem; }
+    .history-item-actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+    .history-expand { margin-top: 0.75rem; }
+    .history-expand textarea { width: 100%; min-height: 120px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; font-size: 0.8rem; color: var(--text-secondary); resize: none; font-family: inherit; }
+    .fade-in { animation: fadeIn 0.3s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 480px) {
+      .tool-row { flex-direction: column; }
+      .tool-btn { width: 100%; justify-content: center; }
     }
-  </script>
-  <style>
-    body { font-family: 'Inter', sans-serif; background: #0d1117; }
-    @keyframes indeterminate {
-      0%   { transform: translateX(-100%) scaleX(0.3); }
-      50%  { transform: translateX(0%)    scaleX(0.6); }
-      100% { transform: translateX(100%)  scaleX(0.3); }
-    }
-    .bar-indeterminate { animation: indeterminate 1.6s ease-in-out infinite; }
-    @keyframes fade-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-    .fade-in { animation: fade-in 0.3s ease forwards; }
-    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
-    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-    .scrollbar-thin::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
-  </style>
-</head>
-<body class="min-h-screen text-slate-100">
+{% endblock %}
 
-  <!-- Navigation -->
-  <nav class="bg-card border-b border-border">
-    <div class="max-w-4xl mx-auto px-4 flex items-center gap-1 h-11">
-      <a href="/" class="flex items-center gap-2 text-slate-300 font-semibold text-sm mr-3 shrink-0">
-        <svg class="w-4 h-4 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-        </svg>
-        URL to Podcast
-      </a>
-      <a href="/" class="px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition">Episodes</a>
-      <a href="/admin" class="px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition">Admin</a>
-      <a href="/generate-script" class="px-3 py-1.5 rounded-lg text-sm font-medium text-indigo-300 bg-indigo-500/10 border border-indigo-500/20">Generate Script</a>
-      <a href="/generate-audio" class="px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition">Generate Audio</a>
-    </div>
-  </nav>
-
-  <!-- Top accent bar -->
-  <div class="h-0.5 w-full bg-gradient-to-r from-violet-600 via-indigo-500 to-sky-500"></div>
-
-  <main class="max-w-2xl mx-auto px-4 py-10">
-
-    <!-- Header -->
-    <header class="mb-8">
-      <div class="flex items-center gap-3 mb-2">
-        <div class="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-lg">🎙️</div>
-        <h1 class="text-2xl font-semibold text-slate-50">URL to Podcast Script</h1>
-      </div>
-      <p class="text-slate-400 text-sm ml-12">Paste any article URL and get a ready-to-record podcast script powered by AI.</p>
+{% block content %}
+  <div class="tool-wrap">
+    <header class="tool-header">
+      <h1><span class="icon-wrap">🎙️</span> URL to Podcast Script</h1>
+      <p>Paste any article URL and get a ready-to-record podcast script powered by AI.</p>
     </header>
 
-    <!-- Input card -->
-    <div class="bg-card border border-border rounded-2xl p-6 mb-6">
-      <label class="block text-sm font-medium text-slate-300 mb-2">Article URL</label>
-      <div class="flex gap-3">
-        <input
-          id="url-input"
-          type="url"
-          placeholder="https://example.com/article"
-          class="flex-1 bg-surface border border-border rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition"
-        />
-        <button
-          id="submit-btn"
-          onclick="submitJob()"
-          class="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-        >
-          <span id="btn-icon">✨</span>
-          <span id="btn-text">Generate</span>
-        </button>
+    <div class="tool-card">
+      <label for="url-input">Article URL</label>
+      <div class="tool-row">
+        <input id="url-input" type="url" placeholder="https://example.com/article" class="tool-input" />
+        <button id="submit-btn" onclick="submitJob()" class="tool-btn"><span id="btn-icon">✨</span><span id="btn-text">Generate</span></button>
       </div>
-      <p id="input-error" class="text-red-400 text-xs mt-2 hidden"></p>
+      <p id="input-error" class="tool-error hidden"></p>
     </div>
 
-    <!-- Active job card -->
-    <div id="active-job" class="bg-card border border-border rounded-2xl p-6 mb-6 fade-in hidden">
+    <div id="active-job" class="tool-card fade-in hidden">
       <div id="state-pending" class="hidden">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
-          <span class="text-sm font-medium text-slate-300">Waiting in queue</span>
-          <span id="queue-pos" class="ml-auto text-xs text-slate-500"></span>
+        <div class="state-row">
+          <span class="state-dot warn pulse"></span>
+          <span class="state-label">Waiting in queue</span>
+          <span class="spacer"></span>
+          <span id="queue-pos" class="state-meta"></span>
         </div>
-        <div class="h-1 bg-surface rounded-full overflow-hidden">
-          <div class="h-full bg-amber-400/60 bar-indeterminate rounded-full"></div>
-        </div>
+        <div class="progress-track"><div class="progress-fill" style="background: rgba(253,203,110,0.6); width: 40%;"></div></div>
       </div>
-
       <div id="state-running" class="hidden">
-        <div class="flex items-center gap-3 mb-3">
-          <svg class="w-4 h-4 text-indigo-400 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-          </svg>
-          <span class="text-sm font-medium text-slate-300">Generating script…</span>
-          <span class="ml-auto text-xs text-slate-500">This may take a minute</span>
+        <div class="state-row">
+          <span class="spinner"></span>
+          <span class="state-label">Generating script…</span>
+          <span class="spacer"></span>
+          <span class="state-meta">This may take a minute</span>
         </div>
-        <div class="h-1 bg-surface rounded-full overflow-hidden">
-          <div class="h-full bg-indigo-500 bar-indeterminate rounded-full"></div>
-        </div>
+        <div class="progress-track"><div class="progress-fill" style="background: var(--accent); width: 40%;"></div></div>
       </div>
-
       <div id="state-done" class="hidden">
-        <div class="flex items-start justify-between gap-3 mb-4">
+        <div class="result-head">
           <div>
-            <div class="flex items-center gap-2 mb-1">
-              <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
-              <span class="text-sm font-medium text-emerald-400">Script ready</span>
-            </div>
-            <p id="result-title" class="text-slate-100 font-semibold text-base"></p>
-            <p id="result-desc" class="text-slate-400 text-xs mt-0.5"></p>
+            <div class="state-row"><span class="state-dot success"></span><span class="state-label" style="font-weight:600;color:var(--accent-light);">Script ready</span></div>
+            <p id="result-title" class="result-title"></p>
+            <p id="result-desc" class="result-desc"></p>
           </div>
-          <button onclick="copyScript()" class="shrink-0 px-3 py-1.5 text-xs font-medium bg-surface border border-border rounded-lg hover:bg-slate-800 transition flex items-center gap-1.5">
-            <span id="copy-icon">📋</span>
-            <span id="copy-label">Copy</span>
-          </button>
+          <button type="button" onclick="copyScript()" class="btn-secondary"><span id="copy-icon">📋</span> <span id="copy-label">Copy</span></button>
         </div>
-        <textarea id="result-script" readonly rows="12"
-          class="w-full bg-surface border border-border rounded-xl px-4 py-3 text-sm text-slate-300 resize-none focus:outline-none scrollbar-thin"></textarea>
+        <textarea id="result-script" readonly rows="12" class="result-textarea"></textarea>
       </div>
-
       <div id="state-failed" class="hidden">
-        <div class="flex items-center gap-3 mb-2">
-          <div class="w-2 h-2 rounded-full bg-red-400"></div>
-          <span class="text-sm font-medium text-red-400">Generation failed</span>
-        </div>
-        <p id="result-error" class="text-slate-400 text-sm bg-surface border border-red-500/20 rounded-xl px-4 py-3"></p>
+        <div class="state-row"><span class="state-dot err"></span><span class="state-label" style="color:#e17055;">Generation failed</span></div>
+        <p id="result-error" class="result-desc" style="background:var(--bg);border:1px solid rgba(225,112,85,0.2);border-radius:10px;padding:0.75rem 1rem;"></p>
       </div>
     </div>
 
-    <!-- History -->
     <section>
-      <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Previous Jobs</h2>
-      <div id="history-list" class="space-y-2">
-        <p id="history-empty" class="text-slate-600 text-sm">No previous jobs in this browser.</p>
+      <h2 class="tool-section-title">Previous Jobs</h2>
+      <div id="history-list" class="history-list">
+        <p id="history-empty" style="font-size:0.85rem;color:var(--text-secondary);">No previous jobs in this browser.</p>
       </div>
     </section>
-  </main>
+  </div>
+{% endblock %}
 
+{% block extra_js %}
   <script>
     const API_PREFIX = '{{ api_prefix }}';
     const COOKIE_NAME = 'script_job_ids';
@@ -162,70 +134,50 @@
       if (!c) return [];
       return decodeURIComponent(c.split('=')[1]).split(',').filter(Boolean);
     }
-
     function saveJobIds(ids) {
       const exp = new Date(Date.now() + 90 * 86400 * 1000).toUTCString();
-      document.cookie = `${COOKIE_NAME}=${encodeURIComponent(ids.slice(0, 20).join(','))}; expires=${exp}; path=/`;
+      document.cookie = COOKIE_NAME + '=' + encodeURIComponent(ids.slice(0, 20).join(',')) + '; expires=' + exp + '; path=/';
     }
-
-    function addJobId(id) {
-      const ids = getJobIds();
-      if (!ids.includes(id)) ids.unshift(id);
-      saveJobIds(ids);
-    }
-
+    function addJobId(id) { const ids = getJobIds(); if (!ids.includes(id)) ids.unshift(id); saveJobIds(ids); }
     function timeAgo(iso) {
       if (!iso) return '';
       const m = Math.floor((Date.now() - new Date(iso)) / 60000);
       if (m < 1) return 'just now';
-      if (m < 60) return `${m}m ago`;
+      if (m < 60) return m + 'm ago';
       const h = Math.floor(m / 60);
-      if (h < 24) return `${h}h ago`;
-      return `${Math.floor(h / 24)}d ago`;
+      if (h < 24) return h + 'h ago';
+      return Math.floor(h / 24) + 'd ago';
     }
 
     async function submitJob() {
       const input = document.getElementById('url-input');
       const url = input.value.trim();
       document.getElementById('input-error').classList.add('hidden');
-      if (!url) { showInputError('Please enter a URL.'); return; }
-      try { new URL(url); } catch { showInputError('Please enter a valid URL.'); return; }
+      if (!url) { document.getElementById('input-error').textContent = 'Please enter a URL.'; document.getElementById('input-error').classList.remove('hidden'); return; }
+      try { new URL(url); } catch (e) { document.getElementById('input-error').textContent = 'Please enter a valid URL.'; document.getElementById('input-error').classList.remove('hidden'); return; }
 
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
       document.getElementById('btn-text').textContent = 'Submitting…';
-
       try {
-        const res = await fetch(API_PREFIX + '/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url })
-        });
+        const res = await fetch(API_PREFIX + '/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) });
         if (!res.ok) throw new Error(await res.text());
-        const { job_id } = await res.json();
-        addJobId(job_id);
-        _activeJobId = job_id;
+        const data = await res.json();
+        addJobId(data.job_id);
+        _activeJobId = data.job_id;
         document.getElementById('active-job').classList.remove('hidden');
-        startPolling(job_id);
+        startPolling(data.job_id);
         input.value = '';
       } catch (e) {
-        showInputError('Submission failed: ' + e.message);
-      } finally {
-        btn.disabled = false;
-        document.getElementById('btn-text').textContent = 'Generate';
+        document.getElementById('input-error').textContent = 'Submission failed: ' + e.message;
+        document.getElementById('input-error').classList.remove('hidden');
       }
-    }
-
-    function showInputError(msg) {
-      const el = document.getElementById('input-error');
-      el.textContent = msg;
-      el.classList.remove('hidden');
+      btn.disabled = false;
+      document.getElementById('btn-text').textContent = 'Generate';
     }
 
     function setActiveState(name) {
-      ['pending','running','done','failed'].forEach(s =>
-        document.getElementById('state-' + s).classList.toggle('hidden', s !== name)
-      );
+      ['pending','running','done','failed'].forEach(s => document.getElementById('state-' + s).classList.toggle('hidden', s !== name));
     }
 
     function renderActiveJob(job) {
@@ -233,17 +185,14 @@
       switch (job.status) {
         case 'pending':
           setActiveState('pending');
-          const pos = job.queue_position;
-          document.getElementById('queue-pos').textContent = pos === 0 ? 'Next up' : `Position ${pos + 1} in queue`;
+          document.getElementById('queue-pos').textContent = (job.queue_position === 0 ? 'Next up' : 'Position ' + (job.queue_position + 1) + ' in queue');
           break;
-        case 'running':
-          setActiveState('running');
-          break;
+        case 'running': setActiveState('running'); break;
         case 'done':
           setActiveState('done');
-          document.getElementById('result-title').textContent = job.result?.title || '';
-          document.getElementById('result-desc').textContent = job.result?.description || '';
-          document.getElementById('result-script').value = job.result?.script || '';
+          document.getElementById('result-title').textContent = (job.result && job.result.title) || '';
+          document.getElementById('result-desc').textContent = (job.result && job.result.description) || '';
+          document.getElementById('result-script').value = (job.result && job.result.script) || '';
           refreshHistory();
           break;
         case 'failed':
@@ -254,27 +203,16 @@
       }
     }
 
-    function startPolling(jobId) {
-      stopPolling();
-      poll(jobId);
-    }
-
-    function stopPolling() {
-      if (_pollTimer) { clearTimeout(_pollTimer); _pollTimer = null; }
-    }
-
+    function startPolling(jobId) { stopPolling(); poll(jobId); }
+    function stopPolling() { if (_pollTimer) { clearTimeout(_pollTimer); _pollTimer = null; } }
     async function poll(jobId) {
       try {
         const res = await fetch(API_PREFIX + '/jobs/' + jobId);
         if (!res.ok) return;
         const job = await res.json();
         renderActiveJob(job);
-        if (job.status === 'pending' || job.status === 'running') {
-          _pollTimer = setTimeout(() => poll(jobId), POLL_MS);
-        }
-      } catch {
-        _pollTimer = setTimeout(() => poll(jobId), POLL_MS);
-      }
+        if (job.status === 'pending' || job.status === 'running') _pollTimer = setTimeout(() => poll(jobId), POLL_MS);
+      } catch (e) { _pollTimer = setTimeout(() => poll(jobId), POLL_MS); }
     }
 
     async function copyScript() {
@@ -283,11 +221,8 @@
         await navigator.clipboard.writeText(text);
         document.getElementById('copy-icon').textContent = '✅';
         document.getElementById('copy-label').textContent = 'Copied!';
-        setTimeout(() => {
-          document.getElementById('copy-icon').textContent = '📋';
-          document.getElementById('copy-label').textContent = 'Copy';
-        }, 2000);
-      } catch {}
+        setTimeout(() => { document.getElementById('copy-icon').textContent = '📋'; document.getElementById('copy-label').textContent = 'Copy'; }, 2000);
+      } catch (e) {}
     }
 
     async function refreshHistory() {
@@ -295,11 +230,7 @@
       const container = document.getElementById('history-list');
       document.getElementById('history-empty').classList.toggle('hidden', ids.length > 0);
       if (!ids.length) return;
-
-      const jobs = await Promise.all(ids.map(id =>
-        fetch(API_PREFIX + '/jobs/' + id).then(r => r.ok ? r.json() : null).catch(() => null)
-      ));
-
+      const jobs = await Promise.all(ids.map(id => fetch(API_PREFIX + '/jobs/' + id).then(r => r.ok ? r.json() : null).catch(() => null)));
       container.innerHTML = '';
       jobs.forEach((job, i) => {
         if (!job || ids[i] === _activeJobId) return;
@@ -307,73 +238,64 @@
       });
     }
 
-    function statusDot(status) {
-      const cls = { pending:'bg-amber-400', running:'bg-indigo-400 animate-pulse', done:'bg-emerald-400', failed:'bg-red-400' };
-      return `<span class="inline-block w-2 h-2 rounded-full ${cls[status]||'bg-slate-600'} mt-1 shrink-0"></span>`;
+    function statusDotClass(status) {
+      if (status === 'pending') return 'warn pulse';
+      if (status === 'running') return 'accent pulse';
+      if (status === 'done') return 'success';
+      if (status === 'failed') return 'err';
+      return '';
     }
 
     function buildHistoryItem(job, id) {
       const el = document.createElement('div');
-      el.className = 'bg-card border border-border rounded-xl px-4 py-3 fade-in';
-      const title = job.result?.title || `Job ${id.slice(0,8)}…`;
+      el.className = 'history-item fade-in';
+      const title = (job.result && job.result.title) || ('Job ' + id.slice(0, 8) + '…');
       const when = timeAgo(job.finished_at || job.created_at);
       const isDone = job.status === 'done';
-      el.innerHTML = `
-        <div class="flex items-start gap-3">
-          ${statusDot(job.status)}
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-slate-200 truncate">${esc(title)}</p>
-            <p class="text-xs text-slate-500 mt-0.5">${esc(when)}</p>
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            ${isDone ? `<button onclick='viewScript(${JSON.stringify(id)})' class="text-xs px-2.5 py-1 bg-surface border border-border rounded-lg hover:bg-slate-800 transition">View</button>` : ''}
-            ${isDone ? `<button onclick='copyHistoryScript(${JSON.stringify(id)}, this)' class="text-xs px-2.5 py-1 bg-surface border border-border rounded-lg hover:bg-slate-800 transition">Copy</button>` : ''}
-            ${job.status === 'failed' ? `<span class="text-xs text-red-400">Failed</span>` : ''}
-            ${(job.status === 'pending' || job.status === 'running') ? `<span class="text-xs text-slate-500">In progress…</span>` : ''}
-          </div>
-        </div>
-        <div id="expand-${esc(id)}" class="hidden mt-3">
-          <textarea readonly rows="8" class="w-full bg-surface border border-border rounded-xl px-4 py-3 text-xs text-slate-300 resize-none focus:outline-none scrollbar-thin">${esc(job.result?.script||'')}</textarea>
-        </div>`;
+      const dotClass = statusDotClass(job.status);
+      el.innerHTML =
+        '<div class="history-item-inner">' +
+        '<span class="history-item-dot state-dot ' + dotClass + '"></span>' +
+        '<div class="history-item-body">' +
+        '<p class="history-item-title">' + esc(title) + '</p>' +
+        '<p class="history-item-time">' + esc(when) + '</p>' +
+        '</div>' +
+        '<div class="history-item-actions">' +
+        (isDone ? '<button type="button" class="btn-secondary" onclick="viewScript(\'' + esc(id) + '\')">View</button>' : '') +
+        (isDone ? '<button type="button" class="btn-secondary" onclick="copyHistoryScript(\'' + esc(id) + '\', this)">Copy</button>' : '') +
+        (job.status === 'failed' ? '<span style="font-size:0.8rem;color:#e17055;">Failed</span>' : '') +
+        ((job.status === 'pending' || job.status === 'running') ? '<span style="font-size:0.8rem;color:var(--text-secondary);">In progress…</span>' : '') +
+        '</div></div>' +
+        '<div id="expand-' + esc(id) + '" class="history-expand hidden"><textarea readonly rows="8">' + esc((job.result && job.result.script) || '') + '</textarea></div>';
       return el;
     }
 
-    function viewScript(id) {
-      document.getElementById('expand-' + id)?.classList.toggle('hidden');
-    }
-
+    function viewScript(id) { var el = document.getElementById('expand-' + id); if (el) el.classList.toggle('hidden'); }
     async function copyHistoryScript(id, btn) {
       try {
         const res = await fetch(API_PREFIX + '/jobs/' + id);
         const job = await res.json();
-        await navigator.clipboard.writeText(job.result?.script || '');
-        btn.textContent = '✅'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
-      } catch { btn.textContent = 'Error'; }
+        await navigator.clipboard.writeText((job.result && job.result.script) || '');
+        btn.textContent = '✅';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+      } catch (e) { btn.textContent = 'Error'; }
     }
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-    function esc(s) {
-      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('url-input').addEventListener('keydown', e => { if (e.key === 'Enter') submitJob(); });
-
-      const ids = getJobIds();
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('url-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitJob(); });
+      var ids = getJobIds();
       if (ids.length > 0) {
-        fetch(API_PREFIX + '/jobs/' + ids[0])
-          .then(r => r.ok ? r.json() : null)
-          .then(job => {
-            if (!job) return;
-            if (job.status === 'pending' || job.status === 'running') {
-              _activeJobId = ids[0];
-              renderActiveJob(job);
-              startPolling(ids[0]);
-            }
-          }).catch(() => {});
+        fetch(API_PREFIX + '/jobs/' + ids[0]).then(function(r) { return r.ok ? r.json() : null; }).then(function(job) {
+          if (!job) return;
+          if (job.status === 'pending' || job.status === 'running') {
+            _activeJobId = ids[0];
+            renderActiveJob(job);
+            startPolling(ids[0]);
+          }
+        }).catch(function() {});
       }
-
       refreshHistory();
     });
   </script>
-</body>
-</html>
+{% endblock %}

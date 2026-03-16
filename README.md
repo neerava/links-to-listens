@@ -105,13 +105,15 @@ The watcher detects it, generates a script, synthesises audio, and the episode a
 
 ## Web UIs
 
-### Episode Player — `http://localhost:8080`
-Browse and play all generated podcast episodes. Each episode shows thumbnail, title, description, source link, and an embedded audio player.
+All four UIs share a **consistent top bar** (brand + Episodes, Admin, Generate Script, Generate Audio) and the same dark theme. Layouts are **responsive**: on narrow screens the nav collapses into a hamburger menu. Templates extend a shared `base.html` with a common design system (CSS variables, cards, buttons).
+
+### Episode Player — `http://localhost:8080/`
+Browse and play all generated podcast episodes. Each episode shows thumbnail, title, description, source link, and an embedded audio player. A “now playing” bar appears at the bottom when any episode is playing.
 
 ### Admin Panel — `http://localhost:8080/admin`
 - **Hide/Show** episodes from the public player
 - **Delete** episodes permanently (removes the audio file)
-- **Regenerate** episodes from their original URL
+- **Regenerate** episodes from their original URL (runs the full pipeline again)
 
 ### URL → Script UI — `http://localhost:8080/generate-script`
 Paste any article URL and get a ready-to-record podcast script. Jobs run in the background — the page polls for completion automatically. Job history is tracked in your browser cookies so you can close the page and come back later.
@@ -188,8 +190,8 @@ Edit `config.yaml` to change any default:
 | `scrape_timeout_sec` | `15` | HTTP request timeout |
 | `output_dir` | `./output` | Directory for generated MP3 files |
 | `web_port` | `8080` | Web UI + admin port |
-| `script_api_port` | `8081` | Script API port (standalone/dev use only — not used when running via app.py) |
-| `audio_api_port` | `8082` | Audio API port (standalone/dev use only — not used when running via app.py) |
+| `script_api_port` | `8081` | Script API port when run standalone (optional; empty/null falls back to 8081) |
+| `audio_api_port` | `8082` | Audio API port when run standalone (optional; empty/null falls back to 8082) |
 | `poll_interval_sec` | `5` | How often the watcher checks `urls.txt` |
 | `max_input_tokens` | `4096` | Max tokens of article text sent to LLM |
 
@@ -210,8 +212,9 @@ url-to-podcast/
 ├── output/               # Generated MP3 files (watcher output)
 │   └── api_audio/        # MP3 files generated via the Audio API
 ├── metadata.json         # Episode metadata (auto-created)
+├── .pipeline.lock        # File lock for pipeline serialization (auto-created, in .gitignore)
 ├── config.yaml           # All configurable settings
-├── run.sh                # Convenience launcher (starts app + watcher on port 8080)
+├── run.sh                # Convenience launcher (starts app + watcher; port from config)
 │
 ├── job_queue.py          # Single-worker FIFO job queue (shared by both APIs)
 ├── script_api.py         # Script Generation router + generate_script() (also runnable standalone)
@@ -226,10 +229,13 @@ url-to-podcast/
 ├── config.py             # Settings loader, env-var overrides, validation
 │
 ├── templates/
-│   ├── index.html        # Public podcast player (with nav bar)
-│   ├── admin.html        # Admin panel — hide, delete, regenerate (with nav bar)
-│   ├── script_ui.html    # URL → script web UI (with nav bar)
-│   └── audio_ui.html     # Script → audio web UI (with nav bar)
+│   ├── base.html         # Shared layout, nav bar, and design system
+│   ├── partials/
+│   │   └── nav.html      # Top bar (Episodes, Admin, Generate Script, Generate Audio)
+│   ├── index.html        # Public podcast player (extends base)
+│   ├── admin.html        # Admin panel — hide, delete, regenerate (extends base)
+│   ├── script_ui.html    # URL → script web UI (extends base)
+│   └── audio_ui.html     # Script → audio web UI (extends base)
 │
 ├── tests/
 │   ├── unit/             # No external dependencies
@@ -260,6 +266,7 @@ url-to-podcast/
 - **No reprocessing:** URLs already in `metadata.json` are skipped on restart.
 - **Fault isolation:** A failure on one URL (bad page, Ollama error, TTS error) is logged and skipped — the watcher continues with the next URL.
 - **Single worker per API:** `job_queue.py` guarantees at most one `generate_script` and one `generate_audio` run at a time. Additional requests wait in a FIFO queue. This prevents resource exhaustion from concurrent LLM or TTS calls.
+- **Pipeline lock:** Only one full pipeline run (scrape → summarize → TTS) executes at a time across the watcher and the web app. A file lock (`.pipeline.lock` in the project root) ensures that if you trigger “Regenerate” from the admin UI while the watcher is already processing a URL, the second run waits for the first to finish. This avoids loading the TTS model twice and prevents out-of-memory errors on machines with limited RAM.
 - **Job persistence:** Job results are held in memory for the lifetime of the process. If you restart a server, in-flight jobs are lost. The audio files in `output/api_audio/` persist across restarts.
 - **Browser cookie tracking:** The script and audio UIs store job IDs in browser cookies (90-day expiry, up to 20 per UI). On return visits the page automatically resumes polling any in-progress jobs and shows completed job history.
 - **Long articles:** Content is truncated to `max_input_tokens` before being sent to the LLM.

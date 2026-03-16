@@ -1,0 +1,17 @@
+<nav class="nav" role="navigation">
+  <a href="/" class="nav-brand" aria-label="URL to Podcast home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+    </svg>
+    <span>URL to Podcast</span>
+  </a>
+  <button type="button" class="nav-toggle" aria-label="Toggle menu" aria-expanded="false" onclick="document.querySelector('.nav').classList.toggle('nav-open')">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="nav-links">
+    <a href="/" class="nav-link {% if nav_current == 'episodes' %}active{% endif %}">Episodes</a>
+    <a href="/admin" class="nav-link {% if nav_current == 'admin' %}active{% endif %}">Admin</a>
+    <a href="/generate-script" class="nav-link {% if nav_current == 'script' %}active{% endif %}">Generate Script</a>
+    <a href="/generate-audio" class="nav-link {% if nav_current == 'audio' %}active{% endif %}">Generate Audio</a>
+  </div>
+</nav>
