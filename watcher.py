@@ -9,10 +9,12 @@ from __future__ import annotations
 import logging
 import re
 import signal
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 from audio_api import generate_audio
 from config import Settings, load_settings
@@ -29,6 +31,7 @@ URLS_FILE = Path(__file__).parent / "urls.txt"
 # URLs that failed during this process's lifetime — prevents infinite retry
 # loops when a URL consistently fails (e.g. TTS not installed).
 _failed_urls: set[str] = set()
+_urls_file_lock = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +48,31 @@ def _read_urls(path: Path) -> list[str]:
             for line in f
             if line.strip() and not line.strip().startswith("#")
         ]
+
+
+def enqueue_url(path: Path, url: str) -> bool:
+    """Append *url* to *path* unless it is already queued.
+
+    Returns ``True`` when the URL is added and ``False`` when it was already
+    present. Raises ``ValueError`` for invalid URLs.
+    """
+    normalized = url.strip()
+    parsed = urlparse(normalized)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("URL must be a valid HTTP or HTTPS address")
+
+    with _urls_file_lock:
+        existing = set(_read_urls(path))
+        if normalized in existing:
+            return False
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        should_prefix_newline = path.exists() and path.stat().st_size > 0
+        with open(path, "a", encoding="utf-8") as f:
+            if should_prefix_newline:
+                f.write("\n")
+            f.write(normalized)
+        return True
 
 
 def _slugify(title: str) -> str:

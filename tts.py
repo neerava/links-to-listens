@@ -150,12 +150,15 @@ def _format_script(script: str) -> str:
     """Format a plain-text script for VibeVoice.
 
     VibeVoice's processor expects each line to start with ``Speaker N:``.
-    We split the script into sentences and label every sentence as Speaker 0.
+    We normalize embedded whitespace first so no raw newline survives inside a
+    sentence, then split the script into sentences and label each as Speaker 0.
     """
     import re
 
+    cleaned = re.sub(r"\s+", " ", script.strip())
+
     # Split on sentence-ending punctuation, keeping the delimiter attached.
-    sentences = re.split(r'(?<=[.!?])\s+', script.strip())
+    sentences = re.split(r'(?<=[.!?])\s+', cleaned)
     lines = [f"Speaker 0: {s.strip()}" for s in sentences if s.strip()]
     return "\n".join(lines)
 

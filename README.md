@@ -99,7 +99,9 @@ python audio_api.py
 echo "https://example.com/some-article" >> urls.txt
 ```
 
-The watcher detects it, generates a script, synthesises audio, and the episode appears in the web UI at `http://localhost:8080`.
+Or queue it directly from the home page at `http://localhost:8080/` using the built-in URL submission form.
+
+The watcher detects queued URLs, generates a script, synthesises audio, and the episode appears in the web UI at `http://localhost:8080`.
 
 ---
 
@@ -108,7 +110,7 @@ The watcher detects it, generates a script, synthesises audio, and the episode a
 All four UIs share a **consistent top bar** (brand + Episodes, Admin, Generate Script, Generate Audio) and the same dark theme. Layouts are **responsive**: on narrow screens the nav collapses into a hamburger menu. Templates extend a shared `base.html` with a common design system (CSS variables, cards, buttons).
 
 ### Episode Player — `http://localhost:8080/`
-Browse and play all generated podcast episodes. Each episode shows thumbnail, title, description, source link, and an embedded audio player. A “now playing” bar appears at the bottom when any episode is playing.
+Browse and play all generated podcast episodes. Each episode shows thumbnail, title, description, source link, and an embedded audio player. A “now playing” bar appears at the bottom when any episode is playing. The top of the page also includes a “Queue a New URL” form that appends validated links to `urls.txt` for watcher pickup.
 
 ### Admin Panel — `http://localhost:8080/admin`
 - **Hide/Show** episodes from the public player
@@ -126,6 +128,20 @@ Paste a script or upload a `.txt` file to synthesise an MP3. Blank scripts are r
 ## API reference
 
 All routes are on port 8080.
+
+### Queue API
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/urls` | Queue a URL for watcher processing |
+
+**Queue a URL from the home page flow:**
+```bash
+curl -X POST http://localhost:8080/api/urls \
+  -H 'Content-Type: application/json' \
+  -d '{"url": "https://example.com/article"}'
+# → {"status": "queued", "message": "..."}
+```
 
 ### Script API
 
@@ -264,14 +280,17 @@ url-to-podcast/
 
 - **No reprocessing:** URLs already in `metadata.json` are skipped on restart.
 - **Fault isolation:** A failure on one URL (bad page, Ollama error, TTS error) is logged and skipped — the watcher continues with the next URL.
+- **Home-page URL queueing:** `POST /api/urls` validates and appends new links to `urls.txt`. Duplicate queued URLs are ignored, and already-processed URLs are reported without being re-added.
 - **Single worker per API:** `job_queue.py` guarantees at most one `generate_script` and one `generate_audio` run at a time. Additional requests wait in a FIFO queue. This prevents resource exhaustion from concurrent LLM or TTS calls.
 - **In-process TTS serialization:** `tts.py` uses a process-wide lock so only one synthesis run can use VibeVoice at a time, even if the request came from the watcher, the audio API, or the admin regenerate flow. This reduces accelerator contention and avoids double-loading or overlapping model execution inside a single app process.
 - **Job persistence:** Job results are held in memory for the lifetime of the process. If you restart a server, in-flight jobs are lost. The audio files in `output/api_audio/` persist across restarts.
 - **Browser cookie tracking:** The script and audio UIs store job IDs in browser cookies (90-day expiry, up to 20 per UI). On return visits the page automatically resumes polling any in-progress jobs and shows completed job history.
 - **Long articles:** Content is truncated to `max_input_tokens` before being sent to the LLM.
 - **TTS validation:** Audio generation fails fast with clear errors when the script is empty, `tts_chunk_sentences` is invalid, or `ffmpeg` is unavailable.
+- **TTS script normalization:** Before handing text to VibeVoice, embedded newlines and repeated whitespace are flattened so each emitted line cleanly matches the `Speaker N:` format expected by the upstream parser. This reduces noisy `Could not parse line` warnings during synthesis.
 - **Apple Silicon safety:** MPS cache flushing is only used when MPS is actually available, which avoids post-chunk crashes on CPU-only macOS runs.
 - **Comments in urls.txt:** Lines starting with `#` are ignored.
 - **Thumbnails:** Extracted from `og:image` / `twitter:image` meta tags. Served through a local proxy (`/img?url=...`) with on-disk caching to avoid CORS and repeated fetches.
 - **Health checks:** `GET /health` available on the main server (port 8080). Also available when running `script_api.py` or `audio_api.py` standalone.
 - **Single process:** `run.sh` starts one uvicorn process (`app:app` on port 8080) plus the watcher. There is no longer a separate process for the script or audio APIs.
+- **Documentation workflow:** When behavior changes in code, the repo docs (`README.md`, `PRD.md`, `plan.md`, `TODO.md`) should be updated in the same change.

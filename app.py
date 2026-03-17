@@ -18,6 +18,7 @@ from audio_api import audio_router
 from config import load_settings
 from metadata import MetadataStore
 from script_api import script_router
+from watcher import URLS_FILE, enqueue_url
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,10 @@ app = FastAPI(title="URL to Podcast", docs_url=None, redoc_url=None)
 # Mount the two generation APIs under their own URI prefixes
 app.include_router(script_router, prefix="/generate-script")
 app.include_router(audio_router, prefix="/generate-audio")
+
+
+class UrlSubmission(BaseModel):
+    url: str
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -177,6 +182,35 @@ async def image_proxy(url: str = Query(..., description="Remote image URL to pro
     cache_path.write_bytes(resp.content)
 
     return Response(content=resp.content, media_type=content_type)
+
+
+@app.post("/api/urls")
+async def submit_url(body: UrlSubmission) -> JSONResponse:
+    url = body.url.strip()
+    if store.is_processed(url):
+        return JSONResponse({
+            "status": "already_processed",
+            "url": url,
+            "message": "That URL has already been processed.",
+        })
+
+    try:
+        added = enqueue_url(URLS_FILE, url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not added:
+        return JSONResponse({
+            "status": "already_queued",
+            "url": url,
+            "message": "That URL is already waiting in urls.txt.",
+        })
+
+    return JSONResponse({
+        "status": "queued",
+        "url": url,
+        "message": "URL queued for processing. The watcher will pick it up shortly.",
+    })
 
 
 @app.get("/health")

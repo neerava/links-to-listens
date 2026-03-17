@@ -48,6 +48,7 @@ def test_index_returns_200(client):
     resp = client.get("/")
     assert resp.status_code == 200
     assert "URL to Podcast" in resp.text
+    assert "Queue a New URL" in resp.text
 
 
 def test_index_shows_episode(client):
@@ -115,6 +116,86 @@ def test_empty_episode_list(tmp_path):
             resp = c.get("/")
             assert resp.status_code == 200
             assert "No episodes yet" in resp.text
+
+
+def test_submit_url_queues_new_url(tmp_path):
+    from config import Settings
+    fake_settings = Settings()
+    fake_settings.output_path = tmp_path
+
+    from metadata import MetadataStore
+    fake_store = MetadataStore(tmp_path / "metadata.json")
+    urls_file = tmp_path / "urls.txt"
+
+    with patch("app.settings", fake_settings), \
+         patch("app.store", fake_store), \
+         patch("app.URLS_FILE", urls_file):
+        import app as app_module
+        with TestClient(app_module.app) as c:
+            resp = c.post("/api/urls", json={"url": "https://example.com/new-story"})
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "queued"
+
+    assert urls_file.read_text() == "https://example.com/new-story"
+
+
+def test_submit_url_rejects_duplicate_queue_entry(tmp_path):
+    from config import Settings
+    fake_settings = Settings()
+    fake_settings.output_path = tmp_path
+
+    from metadata import MetadataStore
+    fake_store = MetadataStore(tmp_path / "metadata.json")
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("https://example.com/new-story")
+
+    with patch("app.settings", fake_settings), \
+         patch("app.store", fake_store), \
+         patch("app.URLS_FILE", urls_file):
+        import app as app_module
+        with TestClient(app_module.app) as c:
+            resp = c.post("/api/urls", json={"url": "https://example.com/new-story"})
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "already_queued"
+
+
+def test_submit_url_rejects_processed_url(tmp_path):
+    from config import Settings
+    fake_settings = Settings()
+    fake_settings.output_path = tmp_path
+
+    from metadata import MetadataStore
+    fake_store = MetadataStore(tmp_path / "metadata.json")
+    fake_store.append(FAKE_EPISODE)
+    urls_file = tmp_path / "urls.txt"
+
+    with patch("app.settings", fake_settings), \
+         patch("app.store", fake_store), \
+         patch("app.URLS_FILE", urls_file):
+        import app as app_module
+        with TestClient(app_module.app) as c:
+            resp = c.post("/api/urls", json={"url": FAKE_EPISODE.source_url})
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "already_processed"
+
+
+def test_submit_url_rejects_invalid_url(tmp_path):
+    from config import Settings
+    fake_settings = Settings()
+    fake_settings.output_path = tmp_path
+
+    from metadata import MetadataStore
+    fake_store = MetadataStore(tmp_path / "metadata.json")
+    urls_file = tmp_path / "urls.txt"
+
+    with patch("app.settings", fake_settings), \
+         patch("app.store", fake_store), \
+         patch("app.URLS_FILE", urls_file):
+        import app as app_module
+        with TestClient(app_module.app) as c:
+            resp = c.post("/api/urls", json={"url": "not-a-url"})
+            assert resp.status_code == 400
+            assert "HTTP or HTTPS" in resp.json()["detail"]
 
 
 # ---------------------------------------------------------------------------

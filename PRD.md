@@ -37,6 +37,7 @@ The pipeline is split into two independent processing stages — one for script 
 | # | As a... | I want to... | So that... |
 |---|---------|-------------|------------|
 | 1 | User | Add a URL to `urls.txt` | It gets automatically processed into an audio episode |
+| 1a | User | Paste a URL into the home page form | It gets appended to the watcher queue without editing files manually |
 | 2 | User | Listen to a conversational summary of an article | I can consume content hands-free |
 | 3 | User | See all generated episodes in a web UI | I can browse and replay past summaries |
 | 4 | User | See the source URL and timestamp for each episode | I can trace back the original content |
@@ -80,8 +81,14 @@ The pipeline is split into two independent processing stages — one for script 
 - **FR-15:** The system MUST expose a local web app listing all generated episodes.
 - **FR-16:** Each episode entry MUST display: thumbnail image tile, title, description, source URL, timestamp, and an embedded HTML5 audio player.
 - **FR-16a:** Thumbnail images MUST be served through a local proxy (`/img?url=...`) to avoid CORS/mixed-content issues.
+- **FR-16b:** The home page MUST provide a URL submission form that validates HTTP/HTTPS links and queues them for watcher processing.
 - **FR-17:** The UI MUST be accessible at `http://localhost:<port>` (default port configurable).
 - **FR-18:** No login or authentication required.
+
+### 5.6a Queue Intake API
+- **FR-18a:** The app MUST expose a `POST /api/urls` endpoint that appends new URLs to `urls.txt`.
+- **FR-18b:** The queue intake endpoint MUST return clear statuses for `queued`, `already_queued`, and `already_processed` submissions.
+- **FR-18c:** The queue intake endpoint MUST reject invalid URLs with a client error.
 
 ### 5.7 Script Generation API (mounted at `/generate-script`)
 - **FR-19:** The system MUST provide a `POST /generate-script/submit` endpoint that accepts `{"url": "..."}` and returns a job ID immediately.
@@ -99,6 +106,7 @@ The pipeline is split into two independent processing stages — one for script 
 - **FR-29:** The `generate_audio(script, output_path, settings)` function MUST be importable directly for in-process use by the watcher.
 - **FR-29a:** Audio generation MUST fail fast with clear errors when the script is empty, `tts_chunk_sentences` is invalid, or `ffmpeg` is unavailable.
 - **FR-29b:** In a single app process, VibeVoice synthesis MUST be serialized so the watcher, audio API, and admin regenerate flow cannot run overlapping TTS jobs.
+- **FR-29c:** Before VibeVoice processing, the script MUST be normalized so embedded newlines do not produce raw non-`Speaker N:` lines for the upstream parser.
 
 ### 5.9 Job Queue
 - **FR-30:** Each API MUST use a single-worker FIFO queue (`job_queue.py`) so that at most one script generation job and one queued audio API job run at a time per process.
@@ -252,11 +260,12 @@ All keys can be overridden at runtime via `PODCAST_<KEY>` environment variables.
 - **`run.sh` launcher** — starts both services, runs preflight checks, shuts down cleanly on Ctrl+C.
 - **Path traversal guard on `/audio/{filename}`** — the audio endpoint rejects filenames containing directory separators.
 - **`/health` endpoint** — added on the web UI for basic operational visibility.
+- **Home page queue flow** — the public index page now includes a URL submission form backed by `POST /api/urls`, so users can enqueue watcher work without editing `urls.txt` manually.
 
 ### v1.2
 - **Pipeline split into two independent APIs** — `script_api.py` (URL → script) and `audio_api.py` (script → MP3) each run as independent FastAPI apps on separate ports. Both expose service functions (`generate_script`, `generate_audio`) that are directly importable by the watcher.
 - **`job_queue.py`** — shared single-worker FIFO queue. Each API has its own queue instance, guaranteeing at most one LLM call and one TTS synthesis run at a time. Accepts `**kwargs`, returns a job ID immediately, and stores results in memory.
-- **TTS guardrails** — `tts.py` rejects blank scripts early, validates `tts_chunk_sentences`, checks `ffmpeg` before both chunk concat and MP3 encoding, and uses a process-wide lock to serialize synthesis across watcher, API, and admin-triggered runs.
+- **TTS guardrails** — `tts.py` rejects blank scripts early, validates `tts_chunk_sentences`, checks `ffmpeg` before both chunk concat and MP3 encoding, normalizes embedded whitespace before `Speaker N:` labeling, and uses a process-wide lock to serialize synthesis across watcher, API, and admin-triggered runs.
 - **Async job UIs** — `templates/script_ui.html` and `templates/audio_ui.html` are modern dark-themed single-page interfaces (Tailwind CSS, Inter font) that poll job status every 3 seconds, resume in-progress jobs on page reload via browser cookies, and show a full job history panel.
 - **Cookie-based job tracking** — JS cookie stores up to 20 job IDs per UI with 90-day expiry. No server-side session required.
 - **Audio API file storage** — audio files generated via the HTTP API are written to `output/api_audio/{uuid}.mp3` and served via a dedicated `/audio/jobs/{id}/download` endpoint. The `file_available` flag in the job status response tells the UI whether the file still exists.
@@ -269,4 +278,5 @@ All keys can be overridden at runtime via `PODCAST_<KEY>` environment variables.
 - **Navigation bar** — a consistent nav bar was added to all four templates (`index.html`, `admin.html`, `script_ui.html`, `audio_ui.html`) so users can move between sections without manually editing the URL.
 - **`api_prefix` Jinja2 variable** — `script_ui.html` and `audio_ui.html` use an `api_prefix` template variable (e.g. `/generate-script`) when constructing API call URLs. This keeps the templates portable: when running `script_api.py` or `audio_api.py` standalone for development, the router serves them at `/` and passes an empty prefix; when mounted inside `app.py` the correct prefix is injected.
 - **`script_api_port` / `audio_api_port`** — these config keys are retained for standalone/dev use when running each API module directly (`python script_api.py`, `python audio_api.py`). They have no effect when the app is started via `app.py`.
-- **TTS hardening** — synthesis is serialized within the process to avoid overlapping VibeVoice runs from the watcher, audio API, and admin regenerate flow. Empty scripts and invalid `tts_chunk_sentences` values now fail fast, and `ffmpeg` is checked before both WAV concat and MP3 encoding. MPS cache flushing is only used when MPS is truly available.
+- **TTS hardening** — synthesis is serialized within the process to avoid overlapping VibeVoice runs from the watcher, audio API, and admin regenerate flow. Empty scripts and invalid `tts_chunk_sentences` values now fail fast, `ffmpeg` is checked before both WAV concat and MP3 encoding, and embedded newlines are flattened before `Speaker N:` labeling so VibeVoice does not emit noisy parse warnings. MPS cache flushing is only used when MPS is truly available.
+- **Public URL queueing** — `watcher.py` now exposes a shared enqueue helper used by `app.py`, and the home page can append validated URLs directly into the watcher input queue.

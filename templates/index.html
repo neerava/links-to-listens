@@ -31,6 +31,74 @@
       border: 1px solid rgba(108,92,231,0.25);
     }
     .content-wrap { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+    .submit-panel {
+      max-width: 760px;
+      margin: 0 auto 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+    }
+    .submit-panel-head { margin-bottom: 0.75rem; }
+    .submit-panel-head h2 { font-size: 1rem; font-weight: 650; margin-bottom: 0.2rem; }
+    .submit-panel-head p { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; }
+    .submit-form { display: flex; gap: 0.75rem; align-items: stretch; }
+    .submit-input {
+      flex: 1;
+      min-width: 0;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      padding: 0.8rem 1rem;
+      font-size: 0.92rem;
+    }
+    .submit-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    .submit-btn {
+      border: none;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 0 1.05rem;
+      min-width: 152px;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+    .submit-btn:hover:not(:disabled) { background: var(--accent-light); transform: translateY(-1px); }
+    .submit-btn:disabled { opacity: 0.65; cursor: wait; transform: none; }
+    .submit-feedback {
+      margin-top: 0.75rem;
+      font-size: 0.84rem;
+      border-radius: 12px;
+      padding: 0.75rem 0.9rem;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text-secondary);
+      display: none;
+    }
+    .submit-feedback.show { display: block; }
+    .submit-feedback.success {
+      color: #b8ffde;
+      border-color: rgba(0,184,148,0.35);
+      background: rgba(0,184,148,0.08);
+    }
+    .submit-feedback.warn {
+      color: #ffe6a6;
+      border-color: rgba(253,203,110,0.35);
+      background: rgba(253,203,110,0.08);
+    }
+    .submit-feedback.error {
+      color: #ffc0b5;
+      border-color: rgba(225,112,85,0.35);
+      background: rgba(225,112,85,0.08);
+    }
     .episode-grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
     .card {
       display: grid;
@@ -105,6 +173,8 @@
     @media (max-width: 640px) {
       .hero { padding: 1.75rem 1rem 1.25rem; }
       .hero h1 { font-size: 1.25rem; }
+      .submit-form { flex-direction: column; }
+      .submit-btn { min-height: 48px; }
       .card { grid-template-columns: 90px 1fr; gap: 0.75rem; padding: 1rem; }
       .card-thumb { width: 90px; height: 90px; }
       .card-title { font-size: 0.95rem; }
@@ -128,10 +198,22 @@
         <span class="badge">{{ episodes | length }} episode{{ 's' if episodes | length != 1 else '' }}</span>
       </h1>
     </div>
-    <p>Drop a URL into urls.txt — get a listenable audio summary.</p>
+    <p>Paste a URL below or drop one into urls.txt to get a listenable audio summary.</p>
   </div>
 
   <div class="content-wrap">
+    <section class="submit-panel">
+      <div class="submit-panel-head">
+        <h2>Queue a New URL</h2>
+        <p>Add an article URL and the watcher will process it on the next poll cycle.</p>
+      </div>
+      <form class="submit-form" id="urlSubmitForm">
+        <input id="urlInput" class="submit-input" type="url" inputmode="url" placeholder="https://example.com/article" required>
+        <button id="urlSubmitButton" class="submit-btn" type="submit">Add URL</button>
+      </form>
+      <div id="urlSubmitFeedback" class="submit-feedback" role="status" aria-live="polite"></div>
+    </section>
+
     {% if episodes %}
     <div class="episode-grid">
       {% for ep in episodes | reverse %}
@@ -190,6 +272,50 @@
 
 {% block extra_js %}
   <script>
+    const submitForm = document.getElementById('urlSubmitForm');
+    const submitInput = document.getElementById('urlInput');
+    const submitButton = document.getElementById('urlSubmitButton');
+    const submitFeedback = document.getElementById('urlSubmitFeedback');
+
+    function showUrlFeedback(message, tone) {
+      submitFeedback.textContent = message;
+      submitFeedback.className = 'submit-feedback show ' + tone;
+    }
+
+    submitForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const url = submitInput.value.trim();
+      if (!url) {
+        showUrlFeedback('Enter a URL to queue for processing.', 'error');
+        return;
+      }
+
+      submitButton.disabled = true;
+      submitButton.textContent = 'Adding...';
+
+      try {
+        const response = await fetch('/api/urls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          showUrlFeedback(data.detail || 'Unable to queue that URL.', 'error');
+        } else if (data.status === 'queued') {
+          showUrlFeedback(data.message, 'success');
+          submitInput.value = '';
+        } else {
+          showUrlFeedback(data.message || 'That URL was not added.', 'warn');
+        }
+      } catch (_error) {
+        showUrlFeedback('Network error while queueing the URL.', 'error');
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Add URL';
+      }
+    });
+
     document.querySelectorAll('audio').forEach(audio => {
       audio.addEventListener('play', () => {
         const bar = document.getElementById('nowPlaying');

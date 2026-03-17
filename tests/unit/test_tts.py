@@ -142,3 +142,12 @@ def test_flush_device_cache_skips_unavailable_mps():
 def test_format_script():
     """Script should be wrapped with Speaker 0 label."""
     assert _format_script("Hello world.") == "Speaker 0: Hello world."
+
+
+def test_format_script_flattens_embedded_newlines():
+    """Embedded newlines should not leave raw lines for VibeVoice to parse."""
+    script = 'First line.\n\nSo, you might\'ve noticed lately\nthat products say "AI-free".'
+    assert _format_script(script) == (
+        'Speaker 0: First line.\n'
+        'Speaker 0: So, you might\'ve noticed lately that products say "AI-free".'
+    )

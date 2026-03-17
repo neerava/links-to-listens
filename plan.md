@@ -120,6 +120,12 @@ Job IDs are stored in browser cookies (client-side). The server only needs `GET 
 ### 4.4 Audio file lifetime
 Audio files generated via the HTTP API are written to `output/api_audio/` and kept indefinitely. The `file_available` flag in the job status response reflects whether the file exists on disk. A future cleanup policy (e.g. TTL) can be added without changing the API contract.
 
+### 4.5 Home-page queue flow
+The watcher still uses `urls.txt` as its source of truth, but the public home page now provides a submission form backed by `POST /api/urls`. This means:
+- Users can queue URLs without opening the filesystem.
+- The app reuses watcher-side queue semantics instead of creating a second intake system.
+- Duplicate queued URLs and already-processed URLs can be handled consistently before the watcher poll loop runs.
+
 ---
 
 ## 5. Task List
@@ -142,6 +148,7 @@ Audio files generated via the HTTP API are written to `output/api_audio/` and ke
 - `synthesize(script, output_path, settings) → Path`
 - VibeVoice Python API, chunk-based inference, ffmpeg concat + MP3 encode
 - Process-wide synthesis lock plus fast-fail validation for empty scripts and invalid chunk settings
+- Normalize embedded whitespace before `Speaker 0:` labeling so VibeVoice's line parser receives clean speaker-formatted input
 
 **TASK-05 — Metadata Store (`metadata.py`)**
 - `MetadataStore`: `append`, `load`, `is_processed`, `get_by_id`, `update`, `delete`
@@ -150,6 +157,7 @@ Audio files generated via the HTTP API are written to `output/api_audio/` and ke
 **TASK-06 — Web UI (`app.py` + templates)**
 - Public player, admin panel, audio serving, image proxy + cache
 - `/health` endpoint
+- Home-page URL submission form backed by `POST /api/urls`
 
 **TASK-07 — URL Watcher (`watcher.py`)**
 - Poll loop, graceful SIGINT/SIGTERM shutdown, per-URL failure isolation
@@ -219,6 +227,13 @@ Audio files generated via the HTTP API are written to `output/api_audio/` and ke
 - **Voice configuration** — voice is configured via `tts_voice_sample` (path to a WAV file) in `config.yaml`. If empty or the file is not found, a 3-second silent WAV is generated as a fallback. The VibeVoice GitHub pre-built `.pt` embeddings (Carter, Emma, etc.) are precomputed for the Realtime 0.5B streaming model and are incompatible with the 1.5B model this project uses; they should not be used.
 - **Global TTS serialization** — `synthesize()` now uses a process-wide lock so watcher jobs, audio API jobs, and admin-triggered regeneration cannot overlap inside the same process.
 - **Fast-fail TTS validation** — blank scripts, invalid `tts_chunk_sentences`, and missing `ffmpeg` now fail early with clear `TTSError`s.
+- **Script normalization for VibeVoice** — embedded newlines and repeated whitespace are flattened before sentence labeling so the upstream parser does not warn about raw lines that lack a `Speaker N:` prefix.
+
+**TASK-20 — Home-page URL Queueing**
+- Added a public “Queue a New URL” form to `templates/index.html`.
+- Added `POST /api/urls` in `app.py` to validate and enqueue URLs.
+- Added `watcher.enqueue_url()` so the web app and watcher share the same `urls.txt` queueing behavior.
+- Added integration coverage for queued, duplicate, processed, and invalid submissions.
 
 ---
 
@@ -229,14 +244,14 @@ Audio files generated via the HTTP API are written to `output/api_audio/` and ke
 |------|-------|
 | `test_scraper.py` | Mock HTTP responses; timeout, 404, empty extraction |
 | `test_summarizer.py` | Mock Ollama API; prose output, error handling, metadata extraction, JSON parsing, fallback |
-| `test_tts.py` | Mock VibeVoice; path creation, empty-script rejection, MPS guard, TTSError on missing binary |
+| `test_tts.py` | Mock VibeVoice; path creation, empty-script rejection, embedded-newline normalization, MPS guard, TTSError on missing binary |
 | `test_metadata.py` | CRUD ops, atomic write, duplicate detection, empty file, backward compat |
 | `test_config.py` | Valid config loads, invalid values raise ConfigError, chunk-size validation |
 
 ### Integration Tests (`tests/integration/`)
 | File | Tests |
 |------|-------|
-| `test_app.py` | FastAPI endpoints with seeded metadata |
+| `test_app.py` | FastAPI endpoints with seeded metadata, home-page URL queueing |
 | `test_watcher.py` | One poll cycle with fully mocked pipeline |
 
 ### Gaps (future work)
@@ -292,6 +307,9 @@ PODCAST_SCRIPT_API_PORT=9081 python script_api.py   # standalone only
 - `output/api_audio/` — created automatically by `audio_api.py` on startup
 - `metadata.json` — writable by running user
 - `urls.txt` — writable by running user
+
+### Project Hygiene
+- Update `README.md`, `PRD.md`, `plan.md`, and `TODO.md` whenever code changes alter product behavior, APIs, or implementation details.
 
 ### Known Limitations (v1.3)
 - Job results are in-memory only; restart loses all pending/running/done job state.

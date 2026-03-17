@@ -65,6 +65,12 @@ All v1.3 functional requirements implemented and verified.
   - Fixed device synchronization between chunks: `torch.mps.synchronize()` / `torch.cuda.synchronize()` called before cache clearing so async GPU/MPS operations from chunk N complete before chunk N+1 starts
   - Suppressed per-chunk tqdm output by passing `show_progress_bar=False` to `model.generate()`
   - Voice configuration: set `tts_voice_sample` in `config.yaml` to a WAV file path, or leave empty for silent fallback. The VibeVoice GitHub `.pt` embeddings (Carter, Emma, etc.) are for the Realtime 0.5B model only and are incompatible with the 1.5B model used here.
+  - Normalized embedded newlines and repeated whitespace before `Speaker 0:` labeling to reduce VibeVoice `Could not parse line` warnings
+- [x] TASK-20 Home-page URL queueing
+  - Added a “Queue a New URL” form to the public index page
+  - Added `POST /api/urls` to validate and append URLs to `urls.txt`
+  - Prevents duplicate queued URLs and reports already-processed URLs cleanly
+  - Added integration tests for queued / duplicate / processed / invalid URL submissions
 
 ## Pre-launch checklist
 - [ ] Install Ollama and pull a model: `ollama pull llama3`
@@ -83,3 +89,6 @@ All v1.3 functional requirements implemented and verified.
 - [ ] Persistent job store (survive server restart)
 - [ ] Audio API job file cleanup / TTL policy
 - [ ] Tests for `script_api.py`, `audio_api.py`, `job_queue.py`
+
+## Project workflow
+- [x] Update `README.md`, `PRD.md`, `plan.md`, and `TODO.md` whenever code changes alter product behavior, APIs, or implementation details
