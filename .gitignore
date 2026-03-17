@@ -1,7 +1,21 @@
 .DS_Store
-__pycache__
-output
-.pipeline.lock
-metadata.json
+
+# Python caches / bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+
+# Test / tooling caches
+.pytest_cache/
+
+# Local agent / editor settings
+.claude/
+
+# Generated app data
+output/
 metadata.json
 urls.txt
