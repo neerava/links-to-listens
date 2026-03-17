@@ -35,6 +35,8 @@ class ScriptResult:
     description: str
     thumbnail_url: str
     script: str
+    input_text: str = ""       # scraped article text fed to the LLM
+    ollama_prompt: str = ""    # full prompt sent to Ollama for script generation
 
 
 def generate_script(url: str, settings: Settings | None = None) -> ScriptResult:
@@ -49,13 +51,17 @@ def generate_script(url: str, settings: Settings | None = None) -> ScriptResult:
 
     scrape_result = scrape(url, settings)
     meta = extract_metadata(scrape_result.text, settings)
-    script = summarize(scrape_result.text, settings)
+    input_text = scrape_result.text
+    ollama_prompt = f"{settings.ollama_prompt}\n\n---\n\n{input_text}"
+    script = summarize(input_text, settings)
 
     return ScriptResult(
         title=meta.title,
         description=meta.description,
         thumbnail_url=scrape_result.thumbnail_url or "",
         script=script,
+        input_text=input_text,
+        ollama_prompt=ollama_prompt,
     )
 
 

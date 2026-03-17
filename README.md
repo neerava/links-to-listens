@@ -244,7 +244,7 @@ url-to-podcast/
 ├── urls.txt              # Input: one URL per line
 ├── output/               # Generated MP3 files (watcher output)
 │   ├── api_audio/        # MP3 files generated via the Audio API
-│   └── pipeline/         # Per-run state dirs: {run-id}/state.json, script.txt, tts_input.txt
+│   └── pipeline/         # Per-run state dirs: {run-id}/state.json, input_text.txt, prompt.txt, script.txt, tts_input.txt
 ├── metadata.json         # Episode metadata (auto-created)
 ├── .pipeline.lock       # File lock for pipeline serialization (auto-created, in .gitignore)
 ├── config.yaml           # All configurable settings
@@ -315,5 +315,5 @@ url-to-podcast/
 - **Thumbnails:** Extracted from `og:image` / `twitter:image` meta tags. Served through a local proxy (`/img?url=...`) with on-disk caching to avoid CORS and repeated fetches.
 - **Health checks:** `GET /health` available on the main server (port 8080). Also available when running `script_api.py` or `audio_api.py` standalone.
 - **Single process:** `run.sh` starts one uvicorn process (`app:app` on port 8080) plus the watcher. There is no longer a separate process for the script or audio APIs.
-- **Pipeline state & intermediates:** Each watcher run creates a directory `output/pipeline/{run-id}/` containing a `state.json` (stage, timestamps, paths, error — never auto-deleted), `script.txt` (raw Ollama output), and `tts_input.txt` (Speaker-labelled VibeVoice input). The intermediate files (`script.txt`, `tts_input.txt`) are automatically pruned after `intermediate_retention_days` (default 3) days; `state.json` and the final MP3 are never touched by the pruner. Pruning runs at watcher startup and then once per day. This state machine covers the watcher pipeline only; API jobs use the existing in-memory job queue.
+- **Pipeline state & intermediates:** Each watcher run creates a directory `output/pipeline/{run-id}/` containing a `state.json` (stage, timestamps, paths, error — never auto-deleted), `input_text.txt` (scraped article text), `prompt.txt` (full Ollama prompt), `script.txt` (raw Ollama output), and `tts_input.txt` (Speaker-labelled VibeVoice input). The intermediate files (`input_text.txt`, `prompt.txt`, `script.txt`, `tts_input.txt`) are automatically pruned after `intermediate_retention_days` (default 3) days; `state.json` and the final MP3 are never touched by the pruner. Pruning runs at watcher startup and then once per day. This state machine covers the watcher pipeline only; API jobs use the existing in-memory job queue.
 - **Documentation workflow:** When behavior changes in code, the repo docs (`README.md`, `PRD.md`, `plan.md`, `TODO.md`) should be updated in the same change.

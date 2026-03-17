@@ -124,8 +124,10 @@ def process_url(
         _failed_urls.add(url)
         return None
 
-    # Save the raw Ollama script as an intermediate
+    # Save intermediates: scraped text, Ollama prompt, and generated script
     if run:
+        pipeline_store.save_input_text(run, script_result.input_text)
+        pipeline_store.save_prompt(run, script_result.ollama_prompt)
         pipeline_store.save_script(run, script_result.script)
 
     title = script_result.title

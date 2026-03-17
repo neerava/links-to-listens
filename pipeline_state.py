@@ -4,6 +4,8 @@ Each URL processed by the watcher gets its own run directory under
 ``output/pipeline/{run-id}/`` containing:
 
   state.json      — current stage, timestamps, file paths, error text
+  input_text.txt  — scraped article text fed to the LLM (pruned after retention_days)
+  prompt.txt      — full prompt sent to Ollama for script generation (pruned after retention_days)
   script.txt      — raw Ollama-generated script  (pruned after retention_days)
   tts_input.txt   — VibeVoice-formatted script with Speaker labels
                     (pruned after retention_days)
@@ -48,6 +50,8 @@ class PipelineRun:
     created_at: str          # ISO-8601 UTC
     updated_at: str          # ISO-8601 UTC
     run_dir: str    = ""     # absolute path to output/pipeline/{run-id}/
+    input_text_path: str = "" # output/pipeline/{run-id}/input_text.txt (empty if pruned)
+    prompt_path: str = ""    # output/pipeline/{run-id}/prompt.txt (empty if pruned)
     script_path: str = ""    # output/pipeline/{run-id}/script.txt (empty if pruned)
     tts_input_path: str = "" # output/pipeline/{run-id}/tts_input.txt (empty if pruned)
     audio_path: str = ""     # absolute path to the final MP3
@@ -133,11 +137,33 @@ class PipelineStateStore:
     # Intermediate file helpers
     # ------------------------------------------------------------------ #
 
+    def input_text_path(self, run: PipelineRun) -> Path:
+        return Path(run.run_dir) / "input_text.txt"
+
+    def prompt_path(self, run: PipelineRun) -> Path:
+        return Path(run.run_dir) / "prompt.txt"
+
     def script_path(self, run: PipelineRun) -> Path:
         return Path(run.run_dir) / "script.txt"
 
     def tts_input_path(self, run: PipelineRun) -> Path:
         return Path(run.run_dir) / "tts_input.txt"
+
+    def save_input_text(self, run: PipelineRun, text: str) -> Path:
+        """Write scraped article text to input_text.txt and record the path in state."""
+        p = self.input_text_path(run)
+        p.write_text(text, encoding="utf-8")
+        self.transition(run, run.stage, input_text_path=str(p))
+        logger.debug("Input text saved → %s (%d chars)", p, len(text))
+        return p
+
+    def save_prompt(self, run: PipelineRun, text: str) -> Path:
+        """Write the full Ollama prompt to prompt.txt and record the path in state."""
+        p = self.prompt_path(run)
+        p.write_text(text, encoding="utf-8")
+        self.transition(run, run.stage, prompt_path=str(p))
+        logger.debug("Prompt saved → %s (%d chars)", p, len(text))
+        return p
 
     def save_script(self, run: PipelineRun, text: str) -> Path:
         """Write *text* to script.txt and record the path in state."""
@@ -181,7 +207,7 @@ class PipelineStateStore:
                     continue
 
                 run_pruned = False
-                for name in ("script.txt", "tts_input.txt"):
+                for name in ("input_text.txt", "prompt.txt", "script.txt", "tts_input.txt"):
                     f = run_dir / name
                     if f.exists():
                         f.unlink()
@@ -190,6 +216,8 @@ class PipelineStateStore:
 
                 if run_pruned:
                     # Clear the paths in state.json so readers know files are gone
+                    data["input_text_path"] = ""
+                    data["prompt_path"] = ""
                     data["script_path"] = ""
                     data["tts_input_path"] = ""
                     tmp = state_file.with_suffix(".tmp")
