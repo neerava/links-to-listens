@@ -246,7 +246,7 @@ def _generate_chunk_wav(
                 generation_config={"do_sample": False},
                 return_speech=True,
                 verbose=False,
-                show_progress_bar=False,
+                show_progress_bar=True,
             )
 
         if not outputs.speech_outputs:
