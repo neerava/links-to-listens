@@ -214,6 +214,7 @@ Edit `config.yaml` to change any default:
 | `audio_api_port` | `8082` | Audio API port when run standalone (optional; empty/null falls back to 8082) |
 | `poll_interval_sec` | `5` | How often the watcher checks `urls.txt` |
 | `max_input_tokens` | `4096` | Max tokens of article text sent to LLM |
+| `intermediate_retention_days` | `3` | Days to keep intermediate files (`script.txt`, `tts_input.txt`) before auto-deletion |
 
 Any setting can also be overridden at runtime with a `PODCAST_` environment variable:
 
@@ -242,16 +243,18 @@ The default setup (VibeVoice-1.5B, float16, 15 diffusion steps, 192 kbps MP3) ba
 url-to-podcast/
 ├── urls.txt              # Input: one URL per line
 ├── output/               # Generated MP3 files (watcher output)
-│   └── api_audio/        # MP3 files generated via the Audio API
+│   ├── api_audio/        # MP3 files generated via the Audio API
+│   └── pipeline/         # Per-run state dirs: {run-id}/state.json, script.txt, tts_input.txt
 ├── metadata.json         # Episode metadata (auto-created)
 ├── .pipeline.lock       # File lock for pipeline serialization (auto-created, in .gitignore)
 ├── config.yaml           # All configurable settings
 ├── run.sh                # Convenience launcher (starts app + watcher; port from config)
 │
 ├── job_queue.py          # Single-worker FIFO job queue (shared by both APIs)
+├── pipeline_state.py     # Watcher pipeline state machine (Stage enum, PipelineRun, PipelineStateStore)
 ├── script_api.py         # Script Generation router + generate_script() (also runnable standalone)
 ├── audio_api.py          # Audio Generation router + generate_audio() (also runnable standalone)
-├── watcher.py            # URL poll loop — calls generate_script() + generate_audio()
+├── watcher.py            # URL poll loop — drives state machine, calls generate_script() + generate_audio()
 ├── scraper.py            # Web scraping (httpx + trafilatura)
 ├── summarizer.py         # Ollama LLM integration
 ├── tts.py                # VibeVoice TTS
@@ -311,4 +314,5 @@ url-to-podcast/
 - **Thumbnails:** Extracted from `og:image` / `twitter:image` meta tags. Served through a local proxy (`/img?url=...`) with on-disk caching to avoid CORS and repeated fetches.
 - **Health checks:** `GET /health` available on the main server (port 8080). Also available when running `script_api.py` or `audio_api.py` standalone.
 - **Single process:** `run.sh` starts one uvicorn process (`app:app` on port 8080) plus the watcher. There is no longer a separate process for the script or audio APIs.
+- **Pipeline state & intermediates:** Each watcher run creates a directory `output/pipeline/{run-id}/` containing a `state.json` (stage, timestamps, paths, error — never auto-deleted), `script.txt` (raw Ollama output), and `tts_input.txt` (Speaker-labelled VibeVoice input). The intermediate files (`script.txt`, `tts_input.txt`) are automatically pruned after `intermediate_retention_days` (default 3) days; `state.json` and the final MP3 are never touched by the pruner. Pruning runs at watcher startup and then once per day. This state machine covers the watcher pipeline only; API jobs use the existing in-memory job queue.
 - **Documentation workflow:** When behavior changes in code, the repo docs (`README.md`, `PRD.md`, `plan.md`, `TODO.md`) should be updated in the same change.

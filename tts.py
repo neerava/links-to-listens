@@ -442,8 +442,20 @@ def _run_in_subprocess(script: str, wav_path: Path, settings: Settings) -> None:
 # Public API
 # ---------------------------------------------------------------------------
 
-def synthesize(script: str, output_path: Path, settings: Settings | None = None) -> Path:
+def synthesize(
+    script: str,
+    output_path: Path,
+    settings: Settings | None = None,
+    save_tts_input: Path | None = None,
+) -> Path:
     """Convert *script* to an MP3 at *output_path* using VibeVoice.
+
+    Args:
+        script:         Plain-text podcast script.
+        output_path:    Destination MP3 file.
+        settings:       Loaded settings (loaded from config if None).
+        save_tts_input: Optional path where the Speaker-labelled TTS input
+                        text will be written before synthesis starts.
 
     Returns the resolved output path.
 
@@ -458,6 +470,12 @@ def synthesize(script: str, output_path: Path, settings: Settings | None = None)
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Save the Speaker-labelled TTS input if a path was provided.
+    if save_tts_input is not None:
+        formatted = _format_script(script)
+        Path(save_tts_input).write_text(formatted, encoding="utf-8")
+        logger.debug("TTS input saved → %s", save_tts_input)
 
     logger.info("Synthesizing audio → %s", output_path)
     t0 = time.monotonic()

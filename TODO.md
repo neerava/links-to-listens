@@ -1,7 +1,7 @@
 # TODO
 
 ## Status
-All v1.5 functional requirements implemented and verified.
+All v1.6 functional requirements implemented and verified.
 
 ## Completed
 
@@ -98,6 +98,18 @@ All v1.5 functional requirements implemented and verified.
   - Hard timeout: 30 minutes (`WORKER_TIMEOUT_SEC = 1800`) per synthesis call
   - Tests bypass subprocess via `PODCAST_TTS_IN_PROCESS=1` (set in `tests/conftest.py`) so mocks remain visible
   - All existing behaviour unchanged: chunked synthesis, voice sample, ffmpeg MP3 conversion, configurable DDPM steps/CFG scale/bitrate
+
+### v1.6 — Pipeline State Machine
+- [x] TASK-27 Watcher pipeline state machine (`pipeline_state.py`)
+  - `Stage` enum: `pending → script → tts → done | failed`
+  - `PipelineRun` dataclass tracks id, url, stage, timestamps, paths, error
+  - `PipelineStateStore` creates `output/pipeline/{run-id}/` per URL run; writes `state.json`, `script.txt`, `tts_input.txt`
+  - `state.json` and final MP3 never auto-deleted; intermediates pruned after `intermediate_retention_days` days (default 3)
+  - Auto-prune runs at watcher startup and then once per day
+  - `watcher.py` drives state machine through PENDING → SCRIPT → TTS → DONE|FAILED
+  - `tts.py` `synthesize()` accepts optional `save_tts_input: Path` to persist Speaker-labelled input
+  - `audio_api.py` `generate_audio()` accepts optional `tts_input_path: Path` and passes it to `synthesize()`
+  - `config.py` / `config.yaml`: new `intermediate_retention_days` field; `pipeline_path` derived from `output_path / "pipeline"`
 
 ## Pre-launch checklist
 - [ ] Install Ollama and pull a model: `ollama pull llama3`

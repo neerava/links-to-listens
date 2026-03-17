@@ -1,7 +1,7 @@
 # Product Requirements Document: URL-to-Podcast Summarizer
 
-**Version:** 1.4
-**Date:** 2026-03-16
+**Version:** 1.6
+**Date:** 2026-03-17
 **Status:** Implemented
 
 ---
@@ -114,6 +114,12 @@ The pipeline is split into two independent processing stages — one for script 
 - **FR-31:** Job submissions MUST return a job ID without blocking.
 - **FR-32:** Jobs MUST expose: `id`, `status`, `created_at`, `started_at`, `finished_at`, `result`, `error`, and `queue_position` (when pending).
 
+### 5.11 Watcher Pipeline State Machine
+- **FR-36:** For each URL processed by the watcher, the system MUST create a run directory `output/pipeline/{run-id}/` and write a `state.json` file tracking: run ID, URL, current stage (`pending`, `script`, `tts`, `done`, `failed`), timestamps (`created_at`, `updated_at`), output paths, and error message.
+- **FR-37:** After script generation, the system MUST save the raw Ollama output to `script.txt` and the Speaker-labelled VibeVoice input to `tts_input.txt` within the run directory.
+- **FR-38:** `state.json` and the final MP3 MUST never be auto-deleted. Intermediate files (`script.txt`, `tts_input.txt`) MUST be pruned automatically after `intermediate_retention_days` days (default: 3). Pruning MUST run at watcher startup and then once per day.
+- **FR-39:** The pipeline state machine MUST cover the watcher pipeline only. API jobs (Script API, Audio API) continue to use the existing in-memory job queue.
+
 ### 5.10 Browser Cookie Job Tracking
 - **FR-33:** Both web UIs MUST store submitted job IDs in browser cookies (up to 20 per UI, 90-day expiry).
 - **FR-34:** On page load, the UI MUST automatically resume polling any in-progress job found in the cookie.
@@ -174,15 +180,17 @@ urls.txt
 url-to-podcast/
 ├── urls.txt                  # Input: one URL per line
 ├── output/                   # Watcher-generated MP3 files
-│   └── api_audio/            # Audio API job MP3 files
+│   ├── api_audio/            # Audio API job MP3 files
+│   └── pipeline/             # Per-run state dirs: {run-id}/state.json, script.txt, tts_input.txt
 ├── metadata.json             # Episode metadata store (auto-created)
 ├── config.yaml               # Configurable settings
 ├── run.sh                    # Convenience launcher (starts all services)
 │
 ├── job_queue.py              # Shared single-worker FIFO job queue
+├── pipeline_state.py         # Watcher pipeline state machine (Stage, PipelineRun, PipelineStateStore)
 ├── script_api.py             # Script Generation API + generate_script()
 ├── audio_api.py              # Audio Generation API + generate_audio()
-├── watcher.py                # URL watcher + orchestrator
+├── watcher.py                # URL watcher + orchestrator; drives pipeline state machine
 ├── scraper.py                # Web scraping logic
 ├── summarizer.py             # Ollama LLM integration
 ├── tts.py                    # VibeVoice TTS integration
@@ -230,12 +238,13 @@ url-to-podcast/
 | `audio_api_port` | `8082` | Audio API port (standalone/dev use only — not used when running via app.py) |
 | `poll_interval_sec` | `5` | How often to check `urls.txt` |
 | `max_input_tokens` | `4096` | Max tokens of scraped content sent to LLM |
+| `intermediate_retention_days` | `3` | Days to keep `script.txt` / `tts_input.txt` before auto-deletion |
 
 All keys can be overridden at runtime via `PODCAST_<KEY>` environment variables.
 
 ---
 
-## 10. Out of Scope (v1 / v1.3)
+## 10. Out of Scope (v1 / v1.6)
 
 - Scheduling / cron-based processing
 - Push notifications when an episode is ready
@@ -298,3 +307,10 @@ All keys can be overridden at runtime via `PODCAST_<KEY>` environment variables.
 
 ### v1.5
 - **VibeVoice subprocess isolation** — `synthesize()` in `tts.py` now spawns a fresh `multiprocessing` subprocess (using the `spawn` start method) for every synthesis call. The subprocess loads the model, generates all audio chunks, writes the merged WAV, and exits; process exit reclaims all GPU/MPS memory with no residual state between runs. A parent-process lock serialises concurrent calls; a hard 30-minute timeout applies per call. Tests bypass the subprocess via `PODCAST_TTS_IN_PROCESS=1` so mocks remain visible. All other synthesis behaviour (chunked generation, voice sample, ffmpeg MP3 conversion, configurable DDPM steps/CFG scale/bitrate) is unchanged.
+
+### v1.6
+- **Pipeline state machine** — `pipeline_state.py` adds a lightweight state machine for the watcher pipeline. `Stage` enum tracks `pending → script → tts → done | failed`. `PipelineRun` dataclass captures run ID, URL, stage, timestamps, output paths, and error. `PipelineStateStore` creates `output/pipeline/{run-id}/` per URL run, writes `state.json`, saves `script.txt` (raw Ollama output) and `tts_input.txt` (Speaker-labelled VibeVoice input), and prunes intermediates older than `intermediate_retention_days` days.
+- **`watcher.py` state integration** — `process_url()` drives the state machine through all stages (PENDING → SCRIPT → TTS → DONE|FAILED), saving `script.txt` after `generate_script()` and passing `tts_input_path` to `generate_audio()`. `run()` creates `PipelineStateStore`, prunes at startup, and re-prunes once per day.
+- **`tts.py`** — `synthesize()` accepts an optional `save_tts_input: Path` parameter and writes the Speaker-labelled formatted script to that path before synthesis.
+- **`audio_api.py`** — `generate_audio()` accepts an optional `tts_input_path: Path` and passes it through to `synthesize()`.
+- **`config.py` / `config.yaml`** — new field `intermediate_retention_days: int = 3`; `pipeline_path` derived from `output_path / "pipeline"`.

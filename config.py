@@ -46,8 +46,10 @@ class Settings:
     poll_interval_sec: int = 5
     max_input_tokens: int = 4096
     tts_chunk_sentences: int = 10  # sentences per TTS inference call; lower = less memory
+    intermediate_retention_days: int = 3  # days to keep script.txt / tts_input.txt before auto-delete
     # Derived at validation time
     output_path: Path = field(default=None, init=False)  # type: ignore[assignment]
+    pipeline_path: Path = field(default=None, init=False)  # type: ignore[assignment]
 
     @property
     def max_input_chars(self) -> int:
@@ -163,6 +165,17 @@ def _validate(settings: Settings) -> None:
         ) from exc
 
     settings.output_path = output_path
+
+    # Validate intermediate_retention_days
+    if isinstance(settings.intermediate_retention_days, str):
+        settings.intermediate_retention_days = int(settings.intermediate_retention_days)
+    if settings.intermediate_retention_days < 1:
+        raise ConfigError(
+            f"intermediate_retention_days must be >= 1, got: {settings.intermediate_retention_days}"
+        )
+
+    # Derive pipeline_path (output/pipeline/) — created on demand, not checked for writability
+    settings.pipeline_path = output_path / "pipeline"
 
 
 def load_settings(path: Path = CONFIG_PATH) -> Settings:

@@ -28,8 +28,18 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def generate_audio(script: str, output_path: Path, settings: Settings | None = None) -> Path:
+def generate_audio(
+    script: str,
+    output_path: Path,
+    settings: Settings | None = None,
+    tts_input_path: Path | None = None,
+) -> Path:
     """Synthesize *script* to an MP3 file at *output_path*.
+
+    Args:
+        tts_input_path: Optional path where the Speaker-labelled TTS input
+                        will be saved before synthesis (used by the pipeline
+                        state machine to preserve the intermediate).
 
     Returns the path to the generated MP3.
 
@@ -39,7 +49,7 @@ def generate_audio(script: str, output_path: Path, settings: Settings | None = N
     if settings is None:
         settings = load_settings()
 
-    return synthesize(script, output_path, settings)
+    return synthesize(script, output_path, settings, save_tts_input=tts_input_path)
 
 
 # ---------------------------------------------------------------------------

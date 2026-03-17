@@ -1,8 +1,8 @@
 # Agentic Development Plan: URL-to-Podcast
 
 **Generated:** 2026-03-15
-**Updated:** 2026-03-16
-**Source:** PRD v1.4
+**Updated:** 2026-03-17
+**Source:** PRD v1.6
 **Status:** All tasks completed
 
 ---
@@ -89,6 +89,7 @@ AudioAPI (audio_api.py — audio_router)                               │
 | M12 — Config | `script_api_port`, `audio_api_port` in config.yaml + validation | ✅ Done |
 | M13 — Port consolidation + nav | Routers mounted in app.py on port 8080; nav bar added to all four templates | ✅ Done |
 | M14 — Pipeline lock + UI + TTS quality | Cross-process pipeline lock; responsive shared top bar; higher-fidelity TTS config; TTS memory cleanup; run.sh port handling | ✅ Done |
+| M15 — Pipeline state machine | `pipeline_state.py` state machine; per-run `output/pipeline/{run-id}/` dirs; intermediate file persistence and auto-pruning; `intermediate_retention_days` config | ✅ Done |
 
 ---
 
@@ -272,6 +273,19 @@ The watcher still uses `urls.txt` as its source of truth, but the public home pa
 
 ---
 
+### Completed Tasks (v1.6)
+
+**TASK-27 — Pipeline state machine (`pipeline_state.py`)**
+- `Stage` enum: `pending → script → tts → done | failed`.
+- `PipelineRun` dataclass: `id`, `url`, `stage`, `created_at`, `updated_at`, `output_path`, `script_path`, `tts_input_path`, `error`.
+- `PipelineStateStore`: creates `output/pipeline/{run-id}/` per URL run; writes/reads `state.json`; saves `script.txt` (raw Ollama output) and `tts_input.txt` (Speaker-labelled VibeVoice input); prunes intermediate files older than `intermediate_retention_days` days (`state.json` and final MP3 are never pruned).
+- `watcher.py` updated: `process_url()` drives the state machine through PENDING → SCRIPT → TTS → DONE|FAILED; `run()` creates `PipelineStateStore`, prunes at startup, re-prunes once per day.
+- `tts.py` updated: `synthesize()` accepts optional `save_tts_input: Path`; writes Speaker-labelled formatted script to that path before synthesis.
+- `audio_api.py` updated: `generate_audio()` accepts optional `tts_input_path: Path`; passes it through to `synthesize()`.
+- `config.py` / `config.yaml` updated: new field `intermediate_retention_days: int = 3`; `pipeline_path` derived from `output_path / “pipeline”`.
+
+---
+
 ## 6. Testing Strategy
 
 ### Unit Tests (`tests/unit/`)
@@ -346,7 +360,7 @@ PODCAST_SCRIPT_API_PORT=9081 python script_api.py   # standalone only
 ### Project Hygiene
 - Update `README.md`, `PRD.md`, `plan.md`, and `TODO.md` whenever code changes alter product behavior, APIs, or implementation details.
 
-### Known Limitations (v1.4)
+### Known Limitations (v1.6)
 - Job results are in-memory only; restart loses all pending/running/done job state.
 - No process supervision (`supervisord`, `launchd`) — add for persistent background operation.
 - No RSS feed.

@@ -46,7 +46,7 @@ def test_process_url_full_pipeline(tmp_path):
         script=SCRIPT,
     )
 
-    def fake_generate_audio(script, output_path, settings):
+    def fake_generate_audio(script, output_path, settings, tts_input_path=None):
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(b"FAKE_MP3")
         return output_path
@@ -136,7 +136,7 @@ def test_run_once_processes_new_url(tmp_path):
          patch("watcher.process_url") as mock_process:
         _run_once(settings, store)
 
-    mock_process.assert_called_once_with("https://example.com/new", settings, store)
+    mock_process.assert_called_once_with("https://example.com/new", settings, store, None)
 
 
 def test_run_once_handles_empty_urls_file(tmp_path):
@@ -162,7 +162,7 @@ def test_run_once_ignores_comment_lines(tmp_path):
          patch("watcher.process_url") as mock_process:
         _run_once(settings, store)
 
-    mock_process.assert_called_once_with("https://example.com/real", settings, store)
+    mock_process.assert_called_once_with("https://example.com/real", settings, store, None)
 
 
 def test_run_once_skips_failed_urls(tmp_path):
