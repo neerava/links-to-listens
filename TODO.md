@@ -1,7 +1,7 @@
 # TODO
 
 ## Status
-All v1.3 functional requirements implemented and verified.
+All v1.4 functional requirements implemented and verified.
 
 ## Completed
 
@@ -72,11 +72,30 @@ All v1.3 functional requirements implemented and verified.
   - Prevents duplicate queued URLs and reports already-processed URLs cleanly
   - Added integration tests for queued / duplicate / processed / invalid URL submissions
 
+### v1.4 — Pipeline Lock + UI + TTS Quality
+- [x] Cross-process pipeline lock
+  - Only one full pipeline run (watcher or admin Regenerate) at a time; file lock `.pipeline.lock` in project root
+  - Prevents double-loading VibeVoice and OOM when watcher and web app run concurrently
+- [x] Responsive UI and shared top bar
+  - Shared `templates/base.html` and `templates/partials/nav.html`; all four UIs extend base
+  - Consistent top bar: Episodes, Admin, Generate Script, Generate Audio; hamburger on narrow screens
+  - Script and audio UIs no longer use Tailwind; same design system as index/admin
+- [x] Higher-fidelity TTS options
+  - Config: `tts_ddpm_steps`, `tts_cfg_scale`, `tts_mp3_bitrate`, `tts_use_float32`; validation and env overrides in `config.py`
+  - README “Higher-fidelity audio” section with presets
+- [x] TTS memory and subprocess hygiene
+  - `_generate_chunk_wav()` try/finally so device memory is flushed on save errors
+  - Docstrings note `subprocess.run()` reaps ffmpeg (no zombies)
+- [x] Config and launcher
+  - `run.sh` port reading robust: empty/null/invalid ports default to 8081/8082 so uvicorn never gets invalid `--port`
+  - Ollama prompt in `config.yaml` improved (length, rules, no generic intros); VibeVoice `verbose=False` to reduce log noise
+
 ## Pre-launch checklist
 - [ ] Install Ollama and pull a model: `ollama pull llama3`
 - [ ] Install VibeVoice: `pip install vibevoice`
 - [ ] Install ffmpeg: `brew install ffmpeg`
 - [ ] Optionally configure a voice sample: `tts_voice_sample` in `config.yaml`
+- [ ] Optionally tune TTS quality: `tts_ddpm_steps`, `tts_cfg_scale`, `tts_mp3_bitrate`, `tts_use_float32` in `config.yaml` (see README “Higher-fidelity audio”)
 - [ ] Run the full end-to-end smoke test: `./run.sh`
 
 ## Out of scope (future)

@@ -2,7 +2,7 @@
 
 **Generated:** 2026-03-15
 **Updated:** 2026-03-16
-**Source:** PRD v1.3
+**Source:** PRD v1.4
 **Status:** All tasks completed
 
 ---
@@ -66,7 +66,7 @@ AudioAPI (audio_api.py — audio_router)                               │
 | File watching | Polling loop (no inotify) | Cross-platform; sufficient at 5s intervals |
 | Testing | pytest + pytest-httpx + respx | Lightweight, async-compatible |
 | Packaging | `requirements.txt` | Simple; no packaging overhead for v1 |
-| Frontend | Tailwind CSS CDN + vanilla JS | Zero build step; Inter font via Google Fonts |
+| Frontend | Shared base template + custom CSS | `base.html` + `partials/nav.html`; all four UIs extend base; responsive with hamburger nav; no Tailwind in script/audio UIs |
 
 ---
 
@@ -88,6 +88,7 @@ AudioAPI (audio_api.py — audio_router)                               │
 | M11 — Async UIs | `templates/script_ui.html` + `templates/audio_ui.html` with cookie tracking | ✅ Done |
 | M12 — Config | `script_api_port`, `audio_api_port` in config.yaml + validation | ✅ Done |
 | M13 — Port consolidation + nav | Routers mounted in app.py on port 8080; nav bar added to all four templates | ✅ Done |
+| M14 — Pipeline lock + UI + TTS quality | Cross-process pipeline lock; responsive shared top bar; higher-fidelity TTS config; TTS memory cleanup; run.sh port handling | ✅ Done |
 
 ---
 
@@ -110,6 +111,9 @@ The watcher and admin regenerate flow call `generate_audio()` directly, so the a
 - Only one VibeVoice run can execute at a time inside a given app process.
 - The watcher, audio API worker, and admin regenerate thread share the same protection.
 - We avoid double-loading or overlapping execution on constrained CPU/GPU/MPS hardware.
+
+### 4.2b Cross-process pipeline lock
+The watcher runs as a separate process from the main app (uvicorn). If both process a URL at once (e.g. watcher picks up a URL and the user triggers “Regenerate” for another), each process would load VibeVoice independently, leading to high memory use and possible OOM. `watcher.py` therefore uses a file lock (`.pipeline.lock`) around the full pipeline so that only one pipeline run (watcher or app) executes at a time system-wide. The lock is acquired at the start of `process_url()` and released when the pipeline completes.
 
 ### 4.3 Cookie-based job tracking (no server-side sessions)
 Job IDs are stored in browser cookies (client-side). The server only needs `GET /generate-script/jobs/{id}` and `GET /generate-audio/jobs/{id}`. This means:
@@ -237,6 +241,30 @@ The watcher still uses `urls.txt` as its source of truth, but the public home pa
 
 ---
 
+### Completed Tasks (v1.4)
+
+**TASK-21 — Cross-process pipeline lock**
+- Only one full pipeline run (scrape → summarize → TTS) at a time across watcher and web app.
+- File lock (`.pipeline.lock`) in project root; `process_url()` acquires it so admin “Regenerate” and watcher never run TTS concurrently in different processes. Prevents double-loading VibeVoice and OOM.
+
+**TASK-22 — Responsive UI and shared top bar**
+- All four UIs use a shared `templates/base.html` and `templates/partials/nav.html` with a consistent top bar (brand + Episodes, Admin, Generate Script, Generate Audio).
+- Responsive: nav collapses to hamburger menu on narrow screens. Unified design system (CSS variables, cards, buttons). Script and audio UIs no longer use Tailwind; they extend base and use the same tokens.
+
+**TASK-23 — Higher-fidelity TTS options**
+- Config: `tts_ddpm_steps` (1–50, default 15), `tts_cfg_scale` (1.0–2.0), `tts_mp3_bitrate` (128/192/256/320), `tts_use_float32` (optional float32 on MPS/CUDA). Validation and env overrides in `config.py`.
+- TTS uses these in model load, generate, and MP3 encode. README documents “Higher-fidelity audio” with practical presets.
+
+**TASK-24 — TTS memory and subprocess hygiene**
+- `_generate_chunk_wav()` uses try/finally so tensors are deleted and device cache flushed even when save fails, avoiding device memory leaks.
+- Docstrings note that `subprocess.run()` reaps ffmpeg children (no zombie processes).
+
+**TASK-25 — Config and launcher**
+- `run.sh` port reading: `get_ports()` uses `os.getcwd()` and normalizes empty/null/invalid port values to defaults so script_api_port and audio_api_port never produce invalid uvicorn args.
+- Ollama prompt in `config.yaml` improved (length guidance, rules list, no generic intros, output-only instruction). VibeVoice generate called with `verbose=False` to suppress “Samples [0] reached EOS” logs.
+
+---
+
 ## 6. Testing Strategy
 
 ### Unit Tests (`tests/unit/`)
@@ -311,8 +339,9 @@ PODCAST_SCRIPT_API_PORT=9081 python script_api.py   # standalone only
 ### Project Hygiene
 - Update `README.md`, `PRD.md`, `plan.md`, and `TODO.md` whenever code changes alter product behavior, APIs, or implementation details.
 
-### Known Limitations (v1.3)
+### Known Limitations (v1.4)
 - Job results are in-memory only; restart loses all pending/running/done job state.
 - No process supervision (`supervisord`, `launchd`) — add for persistent background operation.
 - No RSS feed.
 - No authentication on any endpoint.
+- Pipeline lock is best-effort across processes (file lock); if a process crashes without releasing, the lock file remains until the next successful run overwrites it.

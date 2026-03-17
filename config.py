@@ -34,6 +34,10 @@ class Settings:
     tts_engine: str = "vibevoice"
     tts_voice: str = "default"
     tts_voice_sample: str = ""  # path to a reference WAV for voice cloning (24kHz mono)
+    tts_ddpm_steps: int = 15  # diffusion steps; more = higher fidelity, slower (default 15; max ~20)
+    tts_cfg_scale: float = 1.3  # classifier-free guidance; 1.2–1.5 typical; higher = stronger voice match
+    tts_mp3_bitrate: int = 192  # MP3 bitrate in kbps; 256 or 320 for higher fidelity
+    tts_use_float32: bool = False  # if True, use float32 on MPS/CUDA (better quality, ~2x memory)
     scrape_timeout_sec: int = 15
     output_dir: str = "./output"
     web_port: int = 8080
@@ -105,6 +109,27 @@ def _validate(settings: Settings) -> None:
     if settings.tts_chunk_sentences <= 0:
         raise ConfigError(
             f"tts_chunk_sentences must be > 0, got: {settings.tts_chunk_sentences}"
+        )
+
+    # Coerce numeric TTS settings (e.g. from env overrides)
+    if isinstance(settings.tts_ddpm_steps, str):
+        settings.tts_ddpm_steps = int(settings.tts_ddpm_steps)
+    if isinstance(settings.tts_cfg_scale, str):
+        settings.tts_cfg_scale = float(settings.tts_cfg_scale)
+    if isinstance(settings.tts_mp3_bitrate, str):
+        settings.tts_mp3_bitrate = int(settings.tts_mp3_bitrate)
+
+    if not (1 <= settings.tts_ddpm_steps <= 50):
+        raise ConfigError(
+            f"tts_ddpm_steps must be between 1 and 50, got: {settings.tts_ddpm_steps}"
+        )
+    if not (1.0 <= settings.tts_cfg_scale <= 2.0):
+        raise ConfigError(
+            f"tts_cfg_scale must be between 1.0 and 2.0, got: {settings.tts_cfg_scale}"
+        )
+    if settings.tts_mp3_bitrate not in (128, 192, 256, 320):
+        raise ConfigError(
+            f"tts_mp3_bitrate must be 128, 192, 256, or 320, got: {settings.tts_mp3_bitrate}"
         )
 
     # Validate voice sample path (if provided)

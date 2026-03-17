@@ -201,7 +201,11 @@ Edit `config.yaml` to change any default:
 | `ollama_url` | `http://localhost:11434` | Ollama API endpoint |
 | `ollama_prompt` | *(see config.yaml)* | System prompt for script generation |
 | `tts_voice` | `default` | VibeVoice voice profile |
-| `tts_voice_sample` | `""` | Path to a reference WAV for voice cloning |
+| `tts_voice_sample` | `""` | Path to a reference WAV for voice cloning (24 kHz mono recommended) |
+| `tts_ddpm_steps` | `15` | Diffusion steps (1–50); higher = better fidelity, slower (try 20 for best) |
+| `tts_cfg_scale` | `1.3` | Classifier-free guidance (1.0–2.0); 1.4–1.5 can improve voice clarity |
+| `tts_mp3_bitrate` | `192` | MP3 bitrate in kbps: 128, 192, 256, or 320 (256/320 = higher fidelity) |
+| `tts_use_float32` | `false` | If true, use float32 on GPU/MPS for higher quality (~2× memory; may OOM) |
 | `tts_chunk_sentences` | `10` | Sentences per TTS inference call; must be greater than `0` |
 | `scrape_timeout_sec` | `15` | HTTP request timeout |
 | `output_dir` | `./output` | Directory for generated MP3 files |
@@ -216,7 +220,19 @@ Any setting can also be overridden at runtime with a `PODCAST_` environment vari
 ```bash
 PODCAST_OLLAMA_MODEL=mistral ./run.sh
 PODCAST_SCRIPT_API_PORT=9001 python script_api.py   # standalone only
+PODCAST_TTS_DDPM_STEPS=20 PODCAST_TTS_MP3_BITRATE=320 ./run.sh   # higher fidelity
 ```
+
+### Higher-fidelity audio
+
+The default setup (VibeVoice-1.5B, float16, 15 diffusion steps, 192 kbps MP3) balances quality and speed. For better fidelity:
+
+1. **Voice sample** — Use a clear 24 kHz mono WAV (3–10 seconds of speech) in `tts_voice_sample`. This has the biggest impact.
+2. **Diffusion steps** — Set `tts_ddpm_steps: 20` (or up to 50) for smoother, more detailed audio; synthesis will be slower.
+3. **MP3 bitrate** — Set `tts_mp3_bitrate: 256` or `320` to reduce compression artifacts.
+4. **Guidance** — Try `tts_cfg_scale: 1.4` or `1.5` for stronger voice consistency (too high can sound overdriven).
+5. **Float32** — Set `tts_use_float32: true` to run the model in full precision on MPS/CUDA. Improves clarity but uses roughly twice the memory and can cause OOM on smaller machines.
+6. **Larger model** — VibeVoice-7B yields higher quality but needs ~18 GB+ VRAM; the codebase currently uses the 1.5B model only.
 
 ---
 
@@ -228,6 +244,7 @@ url-to-podcast/
 ├── output/               # Generated MP3 files (watcher output)
 │   └── api_audio/        # MP3 files generated via the Audio API
 ├── metadata.json         # Episode metadata (auto-created)
+├── .pipeline.lock       # File lock for pipeline serialization (auto-created, in .gitignore)
 ├── config.yaml           # All configurable settings
 ├── run.sh                # Convenience launcher (starts app + watcher; port from config)
 │
@@ -283,6 +300,7 @@ url-to-podcast/
 - **Home-page URL queueing:** `POST /api/urls` validates and appends new links to `urls.txt`. Duplicate queued URLs are ignored, and already-processed URLs are reported without being re-added.
 - **Single worker per API:** `job_queue.py` guarantees at most one `generate_script` and one `generate_audio` run at a time. Additional requests wait in a FIFO queue. This prevents resource exhaustion from concurrent LLM or TTS calls.
 - **In-process TTS serialization:** `tts.py` uses a process-wide lock so only one synthesis run can use VibeVoice at a time, even if the request came from the watcher, the audio API, or the admin regenerate flow. This reduces accelerator contention and avoids double-loading or overlapping model execution inside a single app process.
+- **Pipeline lock:** Only one full pipeline run (scrape → summarize → TTS) executes at a time across the watcher and the web app. A file lock (`.pipeline.lock` in the project root) ensures that if you trigger “Regenerate” from the admin UI while the watcher is already processing a URL, the second run waits for the first to finish. This avoids loading the TTS model twice and prevents out-of-memory errors on machines with limited RAM.
 - **Job persistence:** Job results are held in memory for the lifetime of the process. If you restart a server, in-flight jobs are lost. The audio files in `output/api_audio/` persist across restarts.
 - **Browser cookie tracking:** The script and audio UIs store job IDs in browser cookies (90-day expiry, up to 20 per UI). On return visits the page automatically resumes polling any in-progress jobs and shows completed job history.
 - **Long articles:** Content is truncated to `max_input_tokens` before being sent to the LLM.

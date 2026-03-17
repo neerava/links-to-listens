@@ -1,6 +1,6 @@
 # Product Requirements Document: URL-to-Podcast Summarizer
 
-**Version:** 1.3
+**Version:** 1.4
 **Date:** 2026-03-16
 **Status:** Implemented
 
@@ -107,6 +107,7 @@ The pipeline is split into two independent processing stages — one for script 
 - **FR-29a:** Audio generation MUST fail fast with clear errors when the script is empty, `tts_chunk_sentences` is invalid, or `ffmpeg` is unavailable.
 - **FR-29b:** In a single app process, VibeVoice synthesis MUST be serialized so the watcher, audio API, and admin regenerate flow cannot run overlapping TTS jobs.
 - **FR-29c:** Before VibeVoice processing, the script MUST be normalized so embedded newlines do not produce raw non-`Speaker N:` lines for the upstream parser.
+- **FR-29d:** Across processes (watcher vs. web app), only one full pipeline run (scrape → summarize → TTS) MUST be allowed at a time via a cross-process lock (e.g. file lock) to prevent loading the TTS model twice and OOM.
 
 ### 5.9 Job Queue
 - **FR-30:** Each API MUST use a single-worker FIFO queue (`job_queue.py`) so that at most one script generation job and one queued audio API job run at a time per process.
@@ -191,10 +192,13 @@ url-to-podcast/
 ├── config.py                 # Settings loader, env-var overrides, validation
 │
 ├── templates/
-│   ├── index.html            # Public podcast player
-│   ├── admin.html            # Admin panel (hide, delete, regenerate)
-│   ├── script_ui.html        # URL → script UI (/generate-script, with nav bar)
-│   └── audio_ui.html         # Script → audio UI (/generate-audio, with nav bar)
+│   ├── base.html             # Shared layout, nav bar, design system
+│   ├── partials/
+│   │   └── nav.html          # Top bar (Episodes, Admin, Generate Script, Generate Audio)
+│   ├── index.html            # Public podcast player (extends base)
+│   ├── admin.html            # Admin panel (extends base)
+│   ├── script_ui.html       # URL → script UI (extends base)
+│   └── audio_ui.html        # Script → audio UI (extends base)
 │
 ├── tests/
 │   ├── unit/                 # No external dependencies
@@ -214,6 +218,10 @@ url-to-podcast/
 | `tts_engine` | `vibevoice` | TTS engine name |
 | `tts_voice` | `default` | Voice profile |
 | `tts_voice_sample` | `""` | Path to a reference WAV for voice cloning (24kHz mono) |
+| `tts_ddpm_steps` | `15` | Diffusion steps (1–50); higher = better fidelity, slower |
+| `tts_cfg_scale` | `1.3` | Classifier-free guidance (1.0–2.0) for voice consistency |
+| `tts_mp3_bitrate` | `192` | MP3 bitrate: 128, 192, 256, or 320 kbps |
+| `tts_use_float32` | `false` | If true, use float32 on GPU/MPS (better quality, ~2× memory) |
 | `tts_chunk_sentences` | `10` | Sentences per TTS inference call; must be greater than `0` |
 | `scrape_timeout_sec` | `15` | HTTP request timeout |
 | `output_dir` | `./output` | Directory for watcher MP3 files |
@@ -280,3 +288,10 @@ All keys can be overridden at runtime via `PODCAST_<KEY>` environment variables.
 - **`script_api_port` / `audio_api_port`** — these config keys are retained for standalone/dev use when running each API module directly (`python script_api.py`, `python audio_api.py`). They have no effect when the app is started via `app.py`.
 - **TTS hardening** — synthesis is serialized within the process to avoid overlapping VibeVoice runs from the watcher, audio API, and admin regenerate flow. Empty scripts and invalid `tts_chunk_sentences` values now fail fast, `ffmpeg` is checked before both WAV concat and MP3 encoding, and embedded newlines are flattened before `Speaker N:` labeling so VibeVoice does not emit noisy parse warnings. MPS cache flushing is only used when MPS is truly available.
 - **Public URL queueing** — `watcher.py` now exposes a shared enqueue helper used by `app.py`, and the home page can append validated URLs directly into the watcher input queue.
+
+### v1.4
+- **Cross-process pipeline lock** — Only one full pipeline run (watcher or admin Regenerate) at a time system-wide. `watcher.py` uses a file lock (`.pipeline.lock`) around `process_url()` so the web app and watcher never run TTS in parallel in different processes, avoiding double-loading VibeVoice and OOM.
+- **Responsive UI and shared top bar** — All four UIs extend `base.html` and include `partials/nav.html`. Consistent top bar (brand + Episodes, Admin, Generate Script, Generate Audio); responsive with hamburger menu on narrow screens. Script and audio UIs use the same design system (no Tailwind).
+- **Higher-fidelity TTS options** — Config: `tts_ddpm_steps`, `tts_cfg_scale`, `tts_mp3_bitrate`, `tts_use_float32`. Validation and env overrides in `config.py`. README “Higher-fidelity audio” section with presets.
+- **TTS memory and subprocess hygiene** — Chunk inference uses try/finally so device memory is flushed on save errors; docstrings note that `subprocess.run()` reaps ffmpeg (no zombies).
+- **Config and launcher** — `run.sh` port reading made robust (empty/null ports default to 8081/8082). Ollama prompt in `config.yaml` improved; VibeVoice `verbose=False` to reduce log noise.

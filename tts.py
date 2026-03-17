@@ -40,21 +40,26 @@ class TTSError(Exception):
 # Model loading
 # ---------------------------------------------------------------------------
 
-def _get_device_and_dtype() -> tuple[str, torch.dtype, str]:
-    """Pick the best available device."""
+def _get_device_and_dtype(use_float32: bool = False) -> tuple[str, torch.dtype, str]:
+    """Pick the best available device and dtype. use_float32 improves fidelity at ~2x memory."""
     if torch.cuda.is_available():
-        return "cuda", torch.bfloat16, "flash_attention_2"
+        dtype = torch.float32 if use_float32 else torch.bfloat16
+        return "cuda", dtype, "flash_attention_2"
     if torch.backends.mps.is_available():
-        return "mps", torch.float16, "sdpa"
+        dtype = torch.float32 if use_float32 else torch.float16
+        return "mps", dtype, "sdpa"
     return "cpu", torch.float32, "sdpa"
 
 
-def _ensure_model():
+def _ensure_model(settings: Settings | None = None):
     """Lazy-load the VibeVoice model + processor once."""
     global _model, _processor
 
     if _model is not None and _processor is not None:
         return _model, _processor
+
+    if settings is None:
+        settings = load_settings()
 
     try:
         from vibevoice.modular.modeling_vibevoice_inference import (
@@ -66,7 +71,7 @@ def _ensure_model():
             "VibeVoice is not installed.  Install with: pip install vibevoice"
         ) from exc
 
-    device, dtype, attn_impl = _get_device_and_dtype()
+    device, dtype, attn_impl = _get_device_and_dtype(settings.tts_use_float32)
     logger.info("Loading VibeVoice model %s on %s (%s)…", MODEL_ID, device, dtype)
 
     t0 = time.monotonic()
@@ -96,7 +101,7 @@ def _ensure_model():
         _model = _model.to("mps")
 
     _model.eval()
-    _model.set_ddpm_inference_steps(num_steps=10)
+    _model.set_ddpm_inference_steps(num_steps=settings.tts_ddpm_steps)
     logger.info("VibeVoice model loaded in %.1fs", time.monotonic() - t0)
     return _model, _processor
 
@@ -195,6 +200,7 @@ def _generate_chunk_wav(
     processor,
     device,
     voice_sample: str,
+    cfg_scale: float = 1.3,
 ) -> None:
     """Run VibeVoice inference on a single text chunk and save as WAV.
 
@@ -221,7 +227,7 @@ def _generate_chunk_wav(
         with torch.no_grad():
             outputs = model.generate(
                 **inputs,
-                cfg_scale=1.3,
+                cfg_scale=cfg_scale,
                 tokenizer=processor.tokenizer,
                 generation_config={"do_sample": False},
                 return_speech=True,
@@ -294,9 +300,12 @@ def _generate_wav(script: str, wav_path: Path, settings: Settings) -> None:
     After all chunks are produced they are concatenated into *wav_path* via
     ffmpeg and the temporary files are removed.
     """
-    model, processor = _ensure_model()
+    model, processor = _ensure_model(settings)
     device = next(model.parameters()).device
     voice_sample = _get_voice_sample(settings)
+
+    # Apply current config (model may be cached from a previous load)
+    model.set_ddpm_inference_steps(num_steps=settings.tts_ddpm_steps)
 
     lines = _format_script(script).split("\n")
     chunk_size = settings.tts_chunk_sentences
@@ -315,7 +324,10 @@ def _generate_wav(script: str, wav_path: Path, settings: Settings) -> None:
             chunk_text = "\n".join(chunk_lines)
             chunk_wav = tmp_dir / f"chunk_{idx:04d}.wav"
             logger.info("TTS chunk %d/%d (%d sentences)…", idx + 1, len(chunks), len(chunk_lines))
-            _generate_chunk_wav(chunk_text, chunk_wav, model, processor, device, voice_sample)
+            _generate_chunk_wav(
+                chunk_text, chunk_wav, model, processor, device, voice_sample,
+                cfg_scale=settings.tts_cfg_scale,
+            )
             chunk_paths.append(chunk_wav)
 
         _concat_wavs(chunk_paths, wav_path)
@@ -323,7 +335,7 @@ def _generate_wav(script: str, wav_path: Path, settings: Settings) -> None:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def _wav_to_mp3(wav_path: Path, mp3_path: Path) -> None:
+def _wav_to_mp3(wav_path: Path, mp3_path: Path, bitrate_kbps: int = 192) -> None:
     """Convert a WAV file to MP3 using ffmpeg.
 
     subprocess.run() waits for and reaps the child, so no zombie processes.
@@ -335,7 +347,7 @@ def _wav_to_mp3(wav_path: Path, mp3_path: Path) -> None:
             "ffmpeg", "-y",
             "-i", str(wav_path),
             "-codec:a", "libmp3lame",
-            "-b:a", "192k",
+            "-b:a", f"{bitrate_kbps}k",
             str(mp3_path),
         ],
         capture_output=True,
@@ -384,7 +396,7 @@ def synthesize(script: str, output_path: Path, settings: Settings | None = None)
                 raise TTSError("VibeVoice produced an empty or missing WAV file")
 
             # 2. Convert WAV → MP3
-            _wav_to_mp3(wav_path, output_path)
+            _wav_to_mp3(wav_path, output_path, bitrate_kbps=settings.tts_mp3_bitrate)
         finally:
             wav_path.unlink(missing_ok=True)
 

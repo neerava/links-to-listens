@@ -51,7 +51,7 @@ def test_tts_full_success(tmp_path):
     def fake_generate_wav(script, wav_path, settings):
         wav_path.write_bytes(b"RIFF" + b"\x00" * 100)
 
-    def fake_wav_to_mp3(wav_path, mp3_path):
+    def fake_wav_to_mp3(wav_path, mp3_path, **kwargs):
         mp3_path.write_bytes(b"\xff\xfb\x90" + b"\x00" * 100)
 
     with patch("tts._generate_wav", side_effect=fake_generate_wav), \
@@ -68,7 +68,7 @@ def test_tts_creates_parent_dirs(tmp_path):
     def fake_generate_wav(script, wav_path, settings):
         wav_path.write_bytes(b"RIFF" + b"\x00" * 100)
 
-    def fake_wav_to_mp3(wav_path, mp3_path):
+    def fake_wav_to_mp3(wav_path, mp3_path, **kwargs):
         mp3_path.write_bytes(b"\xff\xfb" + b"\x00" * 100)
 
     with patch("tts._generate_wav", side_effect=fake_generate_wav), \
@@ -86,7 +86,7 @@ def test_tts_cleans_up_temp_wav(tmp_path):
         wav_path.write_bytes(b"RIFF" + b"\x00" * 100)
         created_wavs.append(wav_path)
 
-    def fake_wav_to_mp3(wav_path, mp3_path):
+    def fake_wav_to_mp3(wav_path, mp3_path, **kwargs):
         mp3_path.write_bytes(b"\xff\xfb" + b"\x00" * 100)
 
     with patch("tts._generate_wav", side_effect=fake_generate_wav), \
