@@ -101,8 +101,9 @@ All v1.7 functional requirements implemented and verified.
 
 ### v1.7 — Admin Regen Fix + Pipeline State for Admin + TTS Audit
 - [x] TASK-28 Admin regenerate double-creation bug fix, pipeline state for admin regen, TTS subprocess audit
-  - `admin_regenerate` calls `_failed_urls.add(source_url)` before `store.delete()` to block the watcher from picking up the URL concurrently during regen; on success `_failed_urls.discard(source_url)` clears the guard
-  - `watcher.run()` publishes `_pipeline_store` as a module-level variable; `admin_regenerate` imports and passes it to `process_url()` so admin regens appear in `output/pipeline/` just like watcher runs
+  - Cross-process guard uses `metadata.json` (not `_failed_urls`): the old episode is **not deleted** in the HTTP handler so the watcher sees `is_processed(url)=True` and skips the URL; a background thread calls `process_url()` and only on success deletes the old episode + audio and writes the new one; on failure the old episode remains visible
+  - `_failed_urls` guard and `_pipeline_store` module-level export removed from `watcher.py` (never reachable cross-process since the watcher is a separate OS process)
+  - `app.py` creates its own `PipelineStateStore` at module level (pointing to `output/pipeline/`) so admin-triggered regens appear in `output/pipeline/` just like watcher runs (`_pipeline_store` in `watcher.py` was always `None` in the web-app process)
   - TTS subprocess audit confirmed: all three callers of `generate_audio` (`_run_once`, `admin_regenerate`, `_audio_worker`) route through `synthesize()` and the VibeVoice subprocess; Script API does not call TTS
 
 ### v1.6 — Pipeline State Machine

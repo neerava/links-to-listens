@@ -34,9 +34,6 @@ URLS_FILE = Path(__file__).parent / "urls.txt"
 _failed_urls: set[str] = set()
 _urls_file_lock = threading.Lock()
 
-# Shared pipeline store — set by run() so that callers such as the admin
-# regenerate endpoint can record state without creating a second store instance.
-_pipeline_store: PipelineStateStore | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -204,13 +201,11 @@ def run(settings: Settings | None = None) -> None:
     if settings is None:
         settings = load_settings()
 
-    global _pipeline_store
     store = MetadataStore()
     pipeline_store = PipelineStateStore(
         pipeline_dir=settings.pipeline_path,
         retention_days=settings.intermediate_retention_days,
     )
-    _pipeline_store = pipeline_store
     logger.info(
         "Watcher started — polling %s every %ds (pipeline state: %s)",
         URLS_FILE,

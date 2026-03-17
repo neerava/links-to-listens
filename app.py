@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from audio_api import audio_router
 from config import load_settings
 from metadata import MetadataStore
+from pipeline_state import PipelineStateStore
 from script_api import script_router
 from watcher import URLS_FILE, enqueue_url
 
@@ -24,6 +25,13 @@ logger = logging.getLogger(__name__)
 
 settings = load_settings()
 store = MetadataStore()
+# Own pipeline store for the web-app process — points to the same directory as
+# the watcher's store so all runs (watcher-triggered and admin-triggered) are
+# visible in the same output/pipeline/ tree.
+pipeline_store = PipelineStateStore(
+    pipeline_dir=settings.pipeline_path,
+    retention_days=settings.intermediate_retention_days,
+)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 app = FastAPI(title="URL to Podcast", docs_url=None, redoc_url=None)
@@ -94,38 +102,34 @@ async def admin_delete(episode_id: str) -> JSONResponse:
 
 @app.post("/admin/api/episodes/{episode_id}/regenerate")
 async def admin_regenerate(episode_id: str) -> JSONResponse:
-    """Delete existing episode and re-process its URL through the full pipeline."""
+    """Re-process an episode's URL through the full pipeline.
+
+    The old episode is kept in the metadata store until the new one is
+    successfully created.  This is the cross-process guard: while the old
+    record exists, store.is_processed(url) returns True so the watcher will
+    skip the URL and not create a duplicate.
+    """
     old = store.get_by_id(episode_id)
     if not old:
         raise HTTPException(status_code=404, detail="Episode not found")
 
     source_url = old.source_url
+    old_audio_path = settings.output_path / old.audio_path
 
-    # Import watcher state so we can coordinate with the poll loop.
-    from watcher import _failed_urls, _pipeline_store, process_url
+    from watcher import process_url
 
-    # Guard: add to _failed_urls BEFORE deleting from the store.
-    # This prevents the watcher's poll loop from seeing the URL as unprocessed
-    # and picking it up concurrently with the regen thread.
-    _failed_urls.add(source_url)
-
-    # Delete old episode + audio
-    store.delete(episode_id)
-    audio_file = settings.output_path / old.audio_path
-    if audio_file.exists():
-        audio_file.unlink()
-
-    # Run the pipeline in a background thread so we don't block the HTTP response.
-    # Uses the shared _pipeline_store (set by watcher.run()) so state is tracked;
-    # falls back to None gracefully when the watcher process is not running.
     def _regen() -> None:
-        episode = process_url(source_url, settings, store, _pipeline_store)
-        if episode:
-            # Success: episode is back in the store — safe to let the watcher
-            # see it again (is_processed() will return True and it will skip).
-            _failed_urls.discard(source_url)
-        # On failure: process_url already added source_url to _failed_urls,
-        # so the watcher will continue skipping it — no discard needed.
+        new_episode = process_url(source_url, settings, store, pipeline_store)
+        if new_episode:
+            # New episode is in the store — now safe to remove the old one.
+            store.delete(episode_id)
+            if old_audio_path.exists():
+                old_audio_path.unlink()
+            logger.info("Regeneration complete for %s", source_url)
+        else:
+            # Pipeline failed — old episode remains so the watcher continues
+            # to skip it and the user still sees the previous version.
+            logger.warning("Regeneration failed for %s — old episode retained", source_url)
 
     thread = threading.Thread(target=_regen, daemon=True)
     thread.start()
@@ -133,7 +137,7 @@ async def admin_regenerate(episode_id: str) -> JSONResponse:
     return JSONResponse({
         "status": "regenerating",
         "source_url": source_url,
-        "message": "Episode deleted. Regeneration started in background.",
+        "message": "Regeneration started. The episode will be updated when complete.",
     })
 
 
