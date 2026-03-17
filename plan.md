@@ -259,6 +259,13 @@ The watcher still uses `urls.txt` as its source of truth, but the public home pa
 - `_generate_chunk_wav()` uses try/finally so tensors are deleted and device cache flushed even when save fails, avoiding device memory leaks.
 - Docstrings note that `subprocess.run()` reaps ffmpeg children (no zombie processes).
 
+**TASK-26 — VibeVoice subprocess isolation**
+- `synthesize()` in `tts.py` now spawns a fresh `multiprocessing` subprocess (using `spawn` context) for every synthesis call instead of reusing a module-level model singleton.
+- The subprocess loads VibeVoice, generates all audio chunks, writes the merged WAV, then exits; process exit reclaims all GPU/MPS memory with no residual state between runs.
+- `_tts_lock` in the parent process serialises concurrent `synthesize()` calls (replaces the previous in-process lock approach).
+- Hard timeout: 30 minutes (`WORKER_TIMEOUT_SEC = 1800`) per synthesis call.
+- Tests bypass the subprocess via `PODCAST_TTS_IN_PROCESS=1` (set in `tests/conftest.py`) so mocks remain visible to the test process.
+
 **TASK-25 — Config and launcher**
 - `run.sh` port reading: `get_ports()` uses `os.getcwd()` and normalizes empty/null/invalid port values to defaults so script_api_port and audio_api_port never produce invalid uvicorn args.
 - Ollama prompt in `config.yaml` improved (length guidance, rules list, no generic intros, output-only instruction). VibeVoice generate called with `verbose=False` to suppress “Samples [0] reached EOS” logs.

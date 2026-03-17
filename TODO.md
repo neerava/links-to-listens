@@ -1,7 +1,7 @@
 # TODO
 
 ## Status
-All v1.4 functional requirements implemented and verified.
+All v1.5 functional requirements implemented and verified.
 
 ## Completed
 
@@ -89,6 +89,15 @@ All v1.4 functional requirements implemented and verified.
 - [x] Config and launcher
   - `run.sh` port reading robust: empty/null/invalid ports default to 8081/8082 so uvicorn never gets invalid `--port`
   - Ollama prompt in `config.yaml` improved (length, rules, no generic intros); VibeVoice `verbose=False` to reduce log noise
+
+### v1.5 — VibeVoice Subprocess Isolation
+- [x] TASK-26 VibeVoice runs in a dedicated subprocess per synthesis call
+  - `synthesize()` spawns a fresh `multiprocessing` subprocess (`spawn` context) for every call
+  - Subprocess loads model, generates all audio chunks, writes merged WAV, then exits — all GPU/MPS memory reclaimed cleanly
+  - `_tts_lock` in parent process serialises concurrent `synthesize()` calls
+  - Hard timeout: 30 minutes (`WORKER_TIMEOUT_SEC = 1800`) per synthesis call
+  - Tests bypass subprocess via `PODCAST_TTS_IN_PROCESS=1` (set in `tests/conftest.py`) so mocks remain visible
+  - All existing behaviour unchanged: chunked synthesis, voice sample, ffmpeg MP3 conversion, configurable DDPM steps/CFG scale/bitrate
 
 ## Pre-launch checklist
 - [ ] Install Ollama and pull a model: `ollama pull llama3`

@@ -1,8 +1,12 @@
 """TTS engine wrapper: converts a text script to an MP3 file via VibeVoice.
 
-VibeVoice is a HuggingFace-style TTS model.  This module handles model
-loading (once, then cached), inference, WAV rendering, and ffmpeg conversion
-to MP3.
+VibeVoice is run in a dedicated subprocess for every synthesis call.  The
+subprocess loads the model, generates all chunks, writes the merged WAV, then
+exits — reclaiming all GPU/MPS memory cleanly with no residual state leaking
+into subsequent calls.
+
+Set the environment variable ``PODCAST_TTS_IN_PROCESS=1`` to run synthesis
+in the calling process instead (used by unit tests so mocks remain visible).
 """
 from __future__ import annotations
 
@@ -10,6 +14,7 @@ import os
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 import logging
+import multiprocessing
 import os
 import shutil
 import subprocess
@@ -26,10 +31,19 @@ logger = logging.getLogger(__name__)
 
 MODEL_ID = "microsoft/VibeVoice-1.5b"
 
-# Module-level singletons — loaded once per process.
+# Hard upper bound on a single synthesis run (30 min).
+WORKER_TIMEOUT_SEC = 1800
+
+# Serialises concurrent synthesize() calls in the parent process.
+# The subprocess path blocks during p.join(); this prevents two callers from
+# spawning concurrent workers if the job-queue guarantee is ever bypassed.
+_tts_lock = threading.Lock()
+
+# ---------------------------------------------------------------------------
+# Module-level singletons — populated only inside the worker subprocess.
+# ---------------------------------------------------------------------------
 _model = None
 _processor = None
-_tts_lock = threading.Lock()
 
 
 class TTSError(Exception):
@@ -359,6 +373,72 @@ def _wav_to_mp3(wav_path: Path, mp3_path: Path, bitrate_kbps: int = 192) -> None
 
 
 # ---------------------------------------------------------------------------
+# Subprocess worker
+# ---------------------------------------------------------------------------
+
+def _tts_worker(
+    script: str,
+    wav_path_str: str,
+    settings: Settings,
+    result_queue,  # multiprocessing.Queue
+) -> None:
+    """Worker entry point — runs in a fresh subprocess for every synthesis call.
+
+    Loads the VibeVoice model, synthesises all chunks to *wav_path_str*, then
+    returns.  The subprocess exiting reclaims all GPU/MPS memory cleanly.
+    """
+    try:
+        _generate_wav(script, Path(wav_path_str), settings)
+        result_queue.put(None)          # None → success
+    except Exception as exc:
+        result_queue.put(repr(exc))     # serialisable error string
+
+
+def _run_in_subprocess(script: str, wav_path: Path, settings: Settings) -> None:
+    """Spawn a fresh TTS worker process and block until it finishes."""
+    ctx = multiprocessing.get_context("spawn")
+    result_queue = ctx.Queue()
+    p = ctx.Process(
+        target=_tts_worker,
+        args=(script, str(wav_path), settings, result_queue),
+        daemon=False,
+    )
+
+    with _tts_lock:
+        p.start()
+        logger.info("TTS worker started (pid=%d)", p.pid)
+        p.join(timeout=WORKER_TIMEOUT_SEC)
+
+        if p.is_alive():
+            logger.error(
+                "TTS worker pid=%d timed out after %ds — terminating",
+                p.pid, WORKER_TIMEOUT_SEC,
+            )
+            p.terminate()
+            p.join(5)
+            if p.is_alive():
+                p.kill()
+                p.join()
+            raise TTSError(f"TTS worker timed out after {WORKER_TIMEOUT_SEC}s")
+
+        if p.exitcode != 0:
+            try:
+                err = result_queue.get_nowait()
+            except Exception:
+                err = f"exit code {p.exitcode}"
+            raise TTSError(f"TTS worker failed: {err}")
+
+        try:
+            err = result_queue.get_nowait()
+        except Exception:
+            err = None
+        if err is not None:
+            raise TTSError(f"TTS synthesis error: {err}")
+
+        logger.info("TTS worker pid=%d exited cleanly", p.pid)
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -382,23 +462,27 @@ def synthesize(script: str, output_path: Path, settings: Settings | None = None)
     logger.info("Synthesizing audio → %s", output_path)
     t0 = time.monotonic()
 
-    # Serialize all TTS work in-process so the model and accelerator are not
-    # exercised concurrently by the watcher, API worker, and admin regenerate.
-    with _tts_lock:
-        # 1. Generate WAV via VibeVoice
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            wav_path = Path(tmp.name)
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        wav_path = Path(tmp.name)
 
-        try:
-            _generate_wav(script, wav_path, settings)
+    try:
+        if os.environ.get("PODCAST_TTS_IN_PROCESS"):
+            # In-process path: used during testing so that mocks patched onto
+            # this module remain visible inside the same interpreter.
+            with _tts_lock:
+                _generate_wav(script, wav_path, settings)
+        else:
+            # Production path: fresh subprocess for every call so GPU/MPS
+            # memory is fully reclaimed when the worker exits.
+            _run_in_subprocess(script, wav_path, settings)
 
-            if not wav_path.exists() or wav_path.stat().st_size == 0:
-                raise TTSError("VibeVoice produced an empty or missing WAV file")
+        if not wav_path.exists() or wav_path.stat().st_size == 0:
+            raise TTSError("VibeVoice produced an empty or missing WAV file")
 
-            # 2. Convert WAV → MP3
-            _wav_to_mp3(wav_path, output_path, bitrate_kbps=settings.tts_mp3_bitrate)
-        finally:
-            wav_path.unlink(missing_ok=True)
+        # Convert WAV → MP3
+        _wav_to_mp3(wav_path, output_path, bitrate_kbps=settings.tts_mp3_bitrate)
+    finally:
+        wav_path.unlink(missing_ok=True)
 
     elapsed = time.monotonic() - t0
 

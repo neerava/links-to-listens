@@ -105,7 +105,7 @@ The pipeline is split into two independent processing stages — one for script 
 - **FR-28:** The API MUST serve a web UI at `GET /generate-audio` supporting both paste-text and file-upload (`.txt`) input modes.
 - **FR-29:** The `generate_audio(script, output_path, settings)` function MUST be importable directly for in-process use by the watcher.
 - **FR-29a:** Audio generation MUST fail fast with clear errors when the script is empty, `tts_chunk_sentences` is invalid, or `ffmpeg` is unavailable.
-- **FR-29b:** In a single app process, VibeVoice synthesis MUST be serialized so the watcher, audio API, and admin regenerate flow cannot run overlapping TTS jobs.
+- **FR-29b:** Each `synthesize()` call MUST run VibeVoice in a dedicated `multiprocessing` subprocess (using the `spawn` start method) so that all GPU/MPS memory is reclaimed on process exit with no residual state between runs. A parent-process lock MUST serialise concurrent calls so only one synthesis subprocess runs at a time. A hard timeout of 30 minutes MUST apply per synthesis call.
 - **FR-29c:** Before VibeVoice processing, the script MUST be normalized so embedded newlines do not produce raw non-`Speaker N:` lines for the upstream parser.
 - **FR-29d:** Across processes (watcher vs. web app), only one full pipeline run (scrape → summarize → TTS) MUST be allowed at a time via a cross-process lock (e.g. file lock) to prevent loading the TTS model twice and OOM.
 
@@ -295,3 +295,6 @@ All keys can be overridden at runtime via `PODCAST_<KEY>` environment variables.
 - **Higher-fidelity TTS options** — Config: `tts_ddpm_steps`, `tts_cfg_scale`, `tts_mp3_bitrate`, `tts_use_float32`. Validation and env overrides in `config.py`. README “Higher-fidelity audio” section with presets.
 - **TTS memory and subprocess hygiene** — Chunk inference uses try/finally so device memory is flushed on save errors; docstrings note that `subprocess.run()` reaps ffmpeg (no zombies).
 - **Config and launcher** — `run.sh` port reading made robust (empty/null ports default to 8081/8082). Ollama prompt in `config.yaml` improved; VibeVoice `verbose=False` to reduce log noise.
+
+### v1.5
+- **VibeVoice subprocess isolation** — `synthesize()` in `tts.py` now spawns a fresh `multiprocessing` subprocess (using the `spawn` start method) for every synthesis call. The subprocess loads the model, generates all audio chunks, writes the merged WAV, and exits; process exit reclaims all GPU/MPS memory with no residual state between runs. A parent-process lock serialises concurrent calls; a hard 30-minute timeout applies per call. Tests bypass the subprocess via `PODCAST_TTS_IN_PROCESS=1` so mocks remain visible. All other synthesis behaviour (chunked generation, voice sample, ffmpeg MP3 conversion, configurable DDPM steps/CFG scale/bitrate) is unchanged.

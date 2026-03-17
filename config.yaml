@@ -10,8 +10,8 @@ ollama_prompt: |
   - Write as if speaking directly to a listener. Use short paragraphs (2–4 sentences).
   - Preserve the article’s main points, key facts, and any important quotes.
   - No bullet points, headers, or markdown. No generic intros (“Welcome to the show”) or
-    sign-offs unless the article naturally implies them.
-  - Begin with the content immediately. Output only the script text, nothing else.
+    sign-offs.
+  - Begin with the content immediately, do not include response like, "Here's the script". Output only the script text, nothing else.
 
 tts_engine: vibevoice
 tts_voice: default
@@ -26,7 +26,7 @@ tts_voice_sample: ./voices/speaker3.wav
 tts_ddpm_steps: 15        # diffusion steps (1–50); default 15, try 20 for best quality
 tts_cfg_scale: 1.3        # voice guidance strength (1.0–2.0); 1.4–1.5 can improve clarity
 tts_mp3_bitrate: 192      # 128 | 192 | 256 | 320 kbps; 256 or 320 for higher fidelity
-tts_use_float32: false    # true = float32 on GPU/MPS (better quality, ~2x memory; may OOM)
+tts_use_float32: true    # true = float32 on GPU/MPS (better quality, ~2x memory; may OOM)
 
 scrape_timeout_sec: 20
 output_dir: ./output
