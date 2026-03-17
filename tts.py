@@ -184,8 +184,9 @@ def _generate_chunk_wav(
 ) -> None:
     """Run VibeVoice inference on a single text chunk and save as WAV.
 
-    All tensors are deleted and device cache flushed before returning so
-    that memory is reclaimed before the next chunk is processed.
+    All tensors are deleted and device cache flushed before returning (or on
+    exception) so that memory is reclaimed before the next chunk and no
+    device memory leaks on save errors.
     """
     inputs = processor(
         text=[text],
@@ -200,42 +201,50 @@ def _generate_chunk_wav(
         if v is not None
     }
 
-    with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            cfg_scale=1.3,
-            tokenizer=processor.tokenizer,
-            generation_config={"do_sample": False},
-            return_speech=True,
-            verbose=False,
-            show_progress_bar=False,
-        )
+    outputs = None
+    audio_tensor = None
+    try:
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                cfg_scale=1.3,
+                tokenizer=processor.tokenizer,
+                generation_config={"do_sample": False},
+                return_speech=True,
+                verbose=False,
+                show_progress_bar=False,
+            )
 
-    if not outputs.speech_outputs:
-        raise TTSError("VibeVoice generated no audio output for chunk")
+        if not outputs.speech_outputs:
+            raise TTSError("VibeVoice generated no audio output for chunk")
 
-    audio_tensor = outputs.speech_outputs[0]
+        audio_tensor = outputs.speech_outputs[0]
 
-    if hasattr(processor, "save_audio"):
-        processor.save_audio(
-            audio_tensor,
-            output_path=str(wav_path),
-            sampling_rate=24_000,
-            normalize=False,
-        )
-    else:
-        import soundfile as sf
+        if hasattr(processor, "save_audio"):
+            processor.save_audio(
+                audio_tensor,
+                output_path=str(wav_path),
+                sampling_rate=24_000,
+                normalize=False,
+            )
+        else:
+            import soundfile as sf
 
-        sf.write(str(wav_path), audio_tensor.cpu().float().numpy(), samplerate=24_000)
-
-    del inputs, outputs, audio_tensor
-    _flush_device_cache()
+            sf.write(str(wav_path), audio_tensor.cpu().float().numpy(), samplerate=24_000)
+    finally:
+        del inputs
+        if outputs is not None:
+            del outputs
+        if audio_tensor is not None:
+            del audio_tensor
+        _flush_device_cache()
 
 
 def _concat_wavs(chunk_paths: list[Path], output_path: Path) -> None:
     """Concatenate WAV files into *output_path* using ffmpeg concat demuxer.
 
     Uses stream copy (no re-decode), so memory overhead is minimal.
+    subprocess.run() waits for and reaps the child, so no zombie processes.
     """
     if len(chunk_paths) == 1:
         shutil.copy2(chunk_paths[0], output_path)
@@ -295,7 +304,10 @@ def _generate_wav(script: str, wav_path: Path, settings: Settings) -> None:
 
 
 def _wav_to_mp3(wav_path: Path, mp3_path: Path) -> None:
-    """Convert a WAV file to MP3 using ffmpeg."""
+    """Convert a WAV file to MP3 using ffmpeg.
+
+    subprocess.run() waits for and reaps the child, so no zombie processes.
+    """
     if not shutil.which("ffmpeg"):
         raise TTSError(
             "ffmpeg is required for WAV→MP3 conversion but was not found on PATH. "

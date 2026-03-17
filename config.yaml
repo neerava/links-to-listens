@@ -1,9 +1,17 @@
 ollama_model: llama3
 ollama_url: http://localhost:11434
+# System prompt for turning article text into a TTS-ready podcast script.
+# The article is appended after "---" when sent to the model.
 ollama_prompt: |
   You are a podcast host. Convert the following article into a natural, conversational
-  audio script. No bullet points, no headers, no markdown formatting. The script should be 
-  written entirely as if speaking aloud to a listener. Begin directly with the content.
+  audio script suitable for text-to-speech. 
+
+  Rules:
+  - Write as if speaking directly to a listener. Use short paragraphs (2–4 sentences).
+  - Preserve the article’s main points, key facts, and any important quotes.
+  - No bullet points, headers, or markdown. No generic intros (“Welcome to the show”) or
+    sign-offs unless the article naturally implies them.
+  - Begin with the content immediately. Output only the script text, nothing else.
 
 tts_engine: vibevoice
 tts_voice: default
@@ -25,4 +33,4 @@ max_input_tokens: 4096
 # Number of sentences processed per TTS inference call.
 # Lower values use less peak device memory; higher values may sound more natural.
 # Reduce to 5 if you still hit OOM.
-tts_chunk_sentences: 20
+tts_chunk_sentences: 50

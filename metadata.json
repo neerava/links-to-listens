@@ -60,12 +60,22 @@
     "hidden": true
   },
   {
-    "id": "9870de8b-7081-425d-bf0e-2fb9d53b52ac",
-    "title": "The Race to Establish an AI-Free Logo",
-    "description": "Organisations are racing to develop a universally recognised label for 'human-made' products and services, in response to fears that jobs or entire professions are being swept away by AI-powered automation.",
+    "id": "bef3e5a1-2317-4353-9a47-bba47836782b",
+    "title": "The race to establish an AI-free logo",
+    "description": "Organisations worldwide are racing to develop a universally recognised label for 'human-made' products and services as part of the growing backlash against AI use.",
     "source_url": "https://www.bbc.com/news/articles/cj0d6el50ppo?at_medium=RSS&at_campaign=rss",
-    "timestamp": "2026-03-16T19:21:47.623598+00:00",
-    "audio_path": "the-race-to-establish-an-ai-free-logo-20260316T191948Z.mp3",
+    "timestamp": "2026-03-16T19:54:06.213820+00:00",
+    "audio_path": "the-race-to-establish-an-ai-free-logo-20260316T195223Z.mp3",
+    "thumbnail_url": "https://ichef.bbci.co.uk/news/1024/branded_news/bb52/live/5b0b7900-1ed2-11f1-b8f6-b15aa2adfcf4.jpg",
+    "hidden": false
+  },
+  {
+    "id": "7c6811d6-f892-4f9d-a90c-e7d3bc163ce1",
+    "title": "The race to establish an AI-free logo",
+    "description": "Organisations worldwide are racing to develop a universally recognised label for 'human-made' products and services as part of the growing backlash against AI use.",
+    "source_url": "https://www.bbc.com/news/articles/cj0d6el50ppo?at_medium=RSS&at_campaign=rss",
+    "timestamp": "2026-03-16T19:55:08.822285+00:00",
+    "audio_path": "the-race-to-establish-an-ai-free-logo-20260316T195234Z.mp3",
     "thumbnail_url": "https://ichef.bbci.co.uk/news/1024/branded_news/bb52/live/5b0b7900-1ed2-11f1-b8f6-b15aa2adfcf4.jpg",
     "hidden": false
   }
