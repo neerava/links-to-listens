@@ -2,7 +2,7 @@
 
 **Generated:** 2026-03-15
 **Updated:** 2026-03-17
-**Source:** PRD v1.6
+**Source:** PRD v1.7
 **Status:** All tasks completed
 
 ---
@@ -273,6 +273,15 @@ The watcher still uses `urls.txt` as its source of truth, but the public home pa
 
 ---
 
+### Completed Tasks (v1.7)
+
+**TASK-28 — Admin regen bug fix, pipeline state for admin regen, TTS subprocess audit**
+- **Double-creation bug fix** (`app.py`): `admin_regenerate` now calls `_failed_urls.add(source_url)` *before* deleting the episode from the store, preventing the watcher's poll loop from picking up the URL concurrently during regen. On success, `_failed_urls.discard(source_url)` is called so the watcher sees `is_processed()=True`; on failure, `process_url` already adds the URL to `_failed_urls`.
+- **Pipeline state for admin regen** (`watcher.py`, `app.py`): `watcher.run()` publishes its `PipelineStateStore` as module-level `_pipeline_store`. `admin_regenerate` imports and passes `_pipeline_store` to `process_url()` so admin-triggered regens appear in `output/pipeline/` just like watcher runs.
+- **TTS subprocess audit** — all entry points confirmed to reach `synthesize()` via the subprocess: watcher poll (`_run_once → process_url → generate_audio → synthesize`), admin regen (`admin_regenerate → process_url → generate_audio → synthesize`), audio API worker (`_audio_worker → generate_audio → synthesize`). Script API does not call TTS (scraper + Ollama only).
+
+---
+
 ### Completed Tasks (v1.6)
 
 **TASK-27 — Pipeline state machine (`pipeline_state.py`)**
@@ -360,7 +369,7 @@ PODCAST_SCRIPT_API_PORT=9081 python script_api.py   # standalone only
 ### Project Hygiene
 - Update `README.md`, `PRD.md`, `plan.md`, and `TODO.md` whenever code changes alter product behavior, APIs, or implementation details.
 
-### Known Limitations (v1.6)
+### Known Limitations (v1.7)
 - Job results are in-memory only; restart loses all pending/running/done job state.
 - No process supervision (`supervisord`, `launchd`) — add for persistent background operation.
 - No RSS feed.

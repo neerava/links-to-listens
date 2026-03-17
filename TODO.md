@@ -1,7 +1,7 @@
 # TODO
 
 ## Status
-All v1.6 functional requirements implemented and verified.
+All v1.7 functional requirements implemented and verified.
 
 ## Completed
 
@@ -98,6 +98,12 @@ All v1.6 functional requirements implemented and verified.
   - Hard timeout: 30 minutes (`WORKER_TIMEOUT_SEC = 1800`) per synthesis call
   - Tests bypass subprocess via `PODCAST_TTS_IN_PROCESS=1` (set in `tests/conftest.py`) so mocks remain visible
   - All existing behaviour unchanged: chunked synthesis, voice sample, ffmpeg MP3 conversion, configurable DDPM steps/CFG scale/bitrate
+
+### v1.7 — Admin Regen Fix + Pipeline State for Admin + TTS Audit
+- [x] TASK-28 Admin regenerate double-creation bug fix, pipeline state for admin regen, TTS subprocess audit
+  - `admin_regenerate` calls `_failed_urls.add(source_url)` before `store.delete()` to block the watcher from picking up the URL concurrently during regen; on success `_failed_urls.discard(source_url)` clears the guard
+  - `watcher.run()` publishes `_pipeline_store` as a module-level variable; `admin_regenerate` imports and passes it to `process_url()` so admin regens appear in `output/pipeline/` just like watcher runs
+  - TTS subprocess audit confirmed: all three callers of `generate_audio` (`_run_once`, `admin_regenerate`, `_audio_worker`) route through `synthesize()` and the VibeVoice subprocess; Script API does not call TTS
 
 ### v1.6 — Pipeline State Machine
 - [x] TASK-27 Watcher pipeline state machine (`pipeline_state.py`)

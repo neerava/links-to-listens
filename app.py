@@ -101,19 +101,31 @@ async def admin_regenerate(episode_id: str) -> JSONResponse:
 
     source_url = old.source_url
 
+    # Import watcher state so we can coordinate with the poll loop.
+    from watcher import _failed_urls, _pipeline_store, process_url
+
+    # Guard: add to _failed_urls BEFORE deleting from the store.
+    # This prevents the watcher's poll loop from seeing the URL as unprocessed
+    # and picking it up concurrently with the regen thread.
+    _failed_urls.add(source_url)
+
     # Delete old episode + audio
     store.delete(episode_id)
     audio_file = settings.output_path / old.audio_path
     if audio_file.exists():
         audio_file.unlink()
 
-    # Run the pipeline in a background thread so we don't block the HTTP response
-    from watcher import process_url
+    # Run the pipeline in a background thread so we don't block the HTTP response.
+    # Uses the shared _pipeline_store (set by watcher.run()) so state is tracked;
+    # falls back to None gracefully when the watcher process is not running.
     def _regen() -> None:
-        try:
-            process_url(source_url, settings, store)
-        except Exception:  # noqa: BLE001
-            logger.exception("Regeneration failed for %s", source_url)
+        episode = process_url(source_url, settings, store, _pipeline_store)
+        if episode:
+            # Success: episode is back in the store — safe to let the watcher
+            # see it again (is_processed() will return True and it will skip).
+            _failed_urls.discard(source_url)
+        # On failure: process_url already added source_url to _failed_urls,
+        # so the watcher will continue skipping it — no discard needed.
 
     thread = threading.Thread(target=_regen, daemon=True)
     thread.start()

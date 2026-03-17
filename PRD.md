@@ -1,6 +1,6 @@
 # Product Requirements Document: URL-to-Podcast Summarizer
 
-**Version:** 1.6
+**Version:** 1.7
 **Date:** 2026-03-17
 **Status:** Implemented
 
@@ -244,7 +244,7 @@ All keys can be overridden at runtime via `PODCAST_<KEY>` environment variables.
 
 ---
 
-## 10. Out of Scope (v1 / v1.6)
+## 10. Out of Scope (v1 / v1.7)
 
 - Scheduling / cron-based processing
 - Push notifications when an episode is ready
@@ -314,3 +314,8 @@ All keys can be overridden at runtime via `PODCAST_<KEY>` environment variables.
 - **`tts.py`** — `synthesize()` accepts an optional `save_tts_input: Path` parameter and writes the Speaker-labelled formatted script to that path before synthesis.
 - **`audio_api.py`** — `generate_audio()` accepts an optional `tts_input_path: Path` and passes it through to `synthesize()`.
 - **`config.py` / `config.yaml`** — new field `intermediate_retention_days: int = 3`; `pipeline_path` derived from `output_path / "pipeline"`.
+
+### v1.7
+- **Admin regenerate double-creation fix** (`app.py`) — `admin_regenerate` now adds the source URL to `_failed_urls` before deleting the episode from the store, so the watcher's poll loop treats the URL as in-flight and skips it during regen. On success `_failed_urls.discard(source_url)` is called; on failure `process_url` retains the URL in `_failed_urls` as normal.
+- **Pipeline state for admin regen** (`watcher.py`, `app.py`) — `watcher.run()` publishes its `PipelineStateStore` as module-level `_pipeline_store`. `admin_regenerate` imports and passes it to `process_url()`, so admin-triggered regens create `output/pipeline/{run-id}/` state directories just like watcher runs.
+- **TTS subprocess audit** — all three entry points that call TTS (`_run_once`, `admin_regenerate`, `_audio_worker`) confirmed to route through `generate_audio → synthesize`, which spawns the VibeVoice subprocess. The Script API (`generate_script`) does not call TTS.
