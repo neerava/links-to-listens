@@ -33,4 +33,5 @@ max_input_tokens: 4096
 # Number of sentences processed per TTS inference call.
 # Lower values use less peak device memory; higher values may sound more natural.
 # Reduce to 5 if you still hit OOM.
+# Must be greater than 0.
 tts_chunk_sentences: 50

@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -28,6 +29,7 @@ MODEL_ID = "microsoft/VibeVoice-1.5b"
 # Module-level singletons — loaded once per process.
 _model = None
 _processor = None
+_tts_lock = threading.Lock()
 
 
 class TTSError(Exception):
@@ -166,12 +168,21 @@ def _flush_device_cache() -> None:
     """
     import gc
     gc.collect()
-    if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
+    if torch.backends.mps.is_available():
         torch.mps.synchronize()
         torch.mps.empty_cache()
     elif torch.cuda.is_available():
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
+
+
+def _require_ffmpeg() -> None:
+    """Raise a helpful TTSError if ffmpeg is unavailable."""
+    if not shutil.which("ffmpeg"):
+        raise TTSError(
+            "ffmpeg is required for audio generation but was not found on PATH. "
+            "Install it with: brew install ffmpeg  (macOS) or apt install ffmpeg  (Linux)"
+        )
 
 
 def _generate_chunk_wav(
@@ -250,6 +261,8 @@ def _concat_wavs(chunk_paths: list[Path], output_path: Path) -> None:
         shutil.copy2(chunk_paths[0], output_path)
         return
 
+    _require_ffmpeg()
+
     list_file = output_path.with_suffix(".concat_list.txt")
     try:
         list_file.write_text("\n".join(f"file '{p}'" for p in chunk_paths))
@@ -284,6 +297,10 @@ def _generate_wav(script: str, wav_path: Path, settings: Settings) -> None:
 
     lines = _format_script(script).split("\n")
     chunk_size = settings.tts_chunk_sentences
+    if chunk_size <= 0:
+        raise TTSError("tts_chunk_sentences must be greater than 0")
+    if not lines or not any(line.strip() for line in lines):
+        raise TTSError("TTS script is empty")
     chunks = [lines[i : i + chunk_size] for i in range(0, len(lines), chunk_size)]
     logger.info("TTS: %d sentence(s) split into %d chunk(s)", len(lines), len(chunks))
 
@@ -308,11 +325,7 @@ def _wav_to_mp3(wav_path: Path, mp3_path: Path) -> None:
 
     subprocess.run() waits for and reaps the child, so no zombie processes.
     """
-    if not shutil.which("ffmpeg"):
-        raise TTSError(
-            "ffmpeg is required for WAV→MP3 conversion but was not found on PATH. "
-            "Install it with: brew install ffmpeg  (macOS) or apt install ffmpeg  (Linux)"
-        )
+    _require_ffmpeg()
 
     result = subprocess.run(
         [
@@ -345,26 +358,32 @@ def synthesize(script: str, output_path: Path, settings: Settings | None = None)
     if settings is None:
         settings = load_settings()
 
+    if not script or not script.strip():
+        raise TTSError("TTS script is empty")
+
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info("Synthesizing audio → %s", output_path)
     t0 = time.monotonic()
 
-    # 1. Generate WAV via VibeVoice
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-        wav_path = Path(tmp.name)
+    # Serialize all TTS work in-process so the model and accelerator are not
+    # exercised concurrently by the watcher, API worker, and admin regenerate.
+    with _tts_lock:
+        # 1. Generate WAV via VibeVoice
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            wav_path = Path(tmp.name)
 
-    try:
-        _generate_wav(script, wav_path, settings)
+        try:
+            _generate_wav(script, wav_path, settings)
 
-        if not wav_path.exists() or wav_path.stat().st_size == 0:
-            raise TTSError("VibeVoice produced an empty or missing WAV file")
+            if not wav_path.exists() or wav_path.stat().st_size == 0:
+                raise TTSError("VibeVoice produced an empty or missing WAV file")
 
-        # 2. Convert WAV → MP3
-        _wav_to_mp3(wav_path, output_path)
-    finally:
-        wav_path.unlink(missing_ok=True)
+            # 2. Convert WAV → MP3
+            _wav_to_mp3(wav_path, output_path)
+        finally:
+            wav_path.unlink(missing_ok=True)
 
     elapsed = time.monotonic() - t0
 

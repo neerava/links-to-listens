@@ -105,6 +105,12 @@ Both `script_api.py` and `audio_api.py` expose their core logic as importable Py
 - The queue position is exposed in the API so UIs can show "Position 2 in queue".
 - Each API instance has its own queue — script generation and audio synthesis can proceed in parallel with each other, just not concurrently within the same stage.
 
+### 4.2a Process-wide TTS serialization
+The watcher and admin regenerate flow call `generate_audio()` directly, so the audio API queue alone is not enough to prevent overlapping synthesis. `tts.py` therefore also owns a process-wide lock around `synthesize()`. This means:
+- Only one VibeVoice run can execute at a time inside a given app process.
+- The watcher, audio API worker, and admin regenerate thread share the same protection.
+- We avoid double-loading or overlapping execution on constrained CPU/GPU/MPS hardware.
+
 ### 4.3 Cookie-based job tracking (no server-side sessions)
 Job IDs are stored in browser cookies (client-side). The server only needs `GET /generate-script/jobs/{id}` and `GET /generate-audio/jobs/{id}`. This means:
 - No session store required.
@@ -135,6 +141,7 @@ Audio files generated via the HTTP API are written to `output/api_audio/` and ke
 **TASK-04 — TTS Engine (`tts.py`)**
 - `synthesize(script, output_path, settings) → Path`
 - VibeVoice Python API, chunk-based inference, ffmpeg concat + MP3 encode
+- Process-wide synthesis lock plus fast-fail validation for empty scripts and invalid chunk settings
 
 **TASK-05 — Metadata Store (`metadata.py`)**
 - `MetadataStore`: `append`, `load`, `is_processed`, `get_by_id`, `update`, `delete`
@@ -152,6 +159,7 @@ Audio files generated via the HTTP API are written to `output/api_audio/` and ke
 
 **TASK-09 — Config Validation**
 - Fail-fast on bad Ollama URL, bad port, unwritable output dir, missing voice sample
+- Validate `tts_chunk_sentences > 0`
 
 **TASK-10 — Tests**
 - 100+ passing (unit + integration, no external deps required)
@@ -206,8 +214,11 @@ Audio files generated via the HTTP API are written to `output/api_audio/` and ke
 
 **TASK-19 — TTS Stability Fixes (`tts.py`)**
 - **Chunk device synchronization** — added `torch.mps.synchronize()` / `torch.cuda.synchronize()` before cache clearing in `_flush_device_cache()` so all async GPU/MPS operations from chunk N complete before chunk N+1 starts. Previously, async operations could bleed across chunk boundaries causing silent corruption or crashes.
+- **Safe MPS guard** — MPS cache flushing now runs only when `torch.backends.mps.is_available()` is true, avoiding post-chunk crashes on CPU-only macOS runs where `torch.mps` exists but is not usable.
 - **Suppressed per-chunk progress bars** — `show_progress_bar=False` passed to `model.generate()` to eliminate noisy tqdm output per chunk.
 - **Voice configuration** — voice is configured via `tts_voice_sample` (path to a WAV file) in `config.yaml`. If empty or the file is not found, a 3-second silent WAV is generated as a fallback. The VibeVoice GitHub pre-built `.pt` embeddings (Carter, Emma, etc.) are precomputed for the Realtime 0.5B streaming model and are incompatible with the 1.5B model this project uses; they should not be used.
+- **Global TTS serialization** — `synthesize()` now uses a process-wide lock so watcher jobs, audio API jobs, and admin-triggered regeneration cannot overlap inside the same process.
+- **Fast-fail TTS validation** — blank scripts, invalid `tts_chunk_sentences`, and missing `ffmpeg` now fail early with clear `TTSError`s.
 
 ---
 
@@ -218,9 +229,9 @@ Audio files generated via the HTTP API are written to `output/api_audio/` and ke
 |------|-------|
 | `test_scraper.py` | Mock HTTP responses; timeout, 404, empty extraction |
 | `test_summarizer.py` | Mock Ollama API; prose output, error handling, metadata extraction, JSON parsing, fallback |
-| `test_tts.py` | Mock VibeVoice; path creation, TTSError on missing binary |
+| `test_tts.py` | Mock VibeVoice; path creation, empty-script rejection, MPS guard, TTSError on missing binary |
 | `test_metadata.py` | CRUD ops, atomic write, duplicate detection, empty file, backward compat |
-| `test_config.py` | Valid config loads, invalid values raise ConfigError |
+| `test_config.py` | Valid config loads, invalid values raise ConfigError, chunk-size validation |
 
 ### Integration Tests (`tests/integration/`)
 | File | Tests |

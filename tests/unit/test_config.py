@@ -55,6 +55,12 @@ def test_invalid_poll_interval(tmp_path):
         load_settings(cfg)
 
 
+def test_invalid_tts_chunk_sentences(tmp_path):
+    cfg = _write_config(tmp_path, {"tts_chunk_sentences": 0})
+    with pytest.raises(ConfigError, match="tts_chunk_sentences"):
+        load_settings(cfg)
+
+
 def test_output_dir_created(tmp_path):
     out = tmp_path / "new_output"
     cfg = _write_config(tmp_path, {"output_dir": str(out)})

@@ -102,6 +102,11 @@ def _validate(settings: Settings) -> None:
             f"poll_interval_sec must be > 0, got: {settings.poll_interval_sec}"
         )
 
+    if settings.tts_chunk_sentences <= 0:
+        raise ConfigError(
+            f"tts_chunk_sentences must be > 0, got: {settings.tts_chunk_sentences}"
+        )
+
     # Validate voice sample path (if provided)
     if settings.tts_voice_sample:
         vsp = Path(settings.tts_voice_sample).resolve()

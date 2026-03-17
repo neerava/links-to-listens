@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from config import Settings
-from tts import TTSError, synthesize, _format_script, _wav_to_mp3
+from tts import TTSError, synthesize, _concat_wavs, _format_script, _wav_to_mp3
 
 
 def _settings() -> Settings:
@@ -106,6 +106,37 @@ def test_tts_ffmpeg_missing_raises(tmp_path):
     with patch("shutil.which", return_value=None):
         with pytest.raises(TTSError, match="ffmpeg"):
             _wav_to_mp3(wav, mp3)
+
+
+def test_tts_concat_ffmpeg_missing_raises(tmp_path):
+    """Chunked generation should fail cleanly when ffmpeg is missing."""
+    wav1 = tmp_path / "part1.wav"
+    wav2 = tmp_path / "part2.wav"
+    wav1.write_bytes(b"RIFF" + b"\x00" * 100)
+    wav2.write_bytes(b"RIFF" + b"\x00" * 100)
+    out = tmp_path / "joined.wav"
+
+    with patch("shutil.which", return_value=None):
+        with pytest.raises(TTSError, match="ffmpeg"):
+            _concat_wavs([wav1, wav2], out)
+
+
+def test_synthesize_rejects_empty_script(tmp_path):
+    """Blank scripts should be rejected before model inference starts."""
+    out = tmp_path / "out.mp3"
+
+    with pytest.raises(TTSError, match="empty"):
+        synthesize("   ", out, _settings())
+
+
+def test_flush_device_cache_skips_unavailable_mps():
+    """Do not call MPS synchronization helpers when MPS is unavailable."""
+    with patch("tts.torch.backends.mps.is_available", return_value=False), \
+         patch("tts.torch.cuda.is_available", return_value=False), \
+         patch("tts.torch.mps.synchronize", side_effect=AssertionError("should not be called")), \
+         patch("tts.torch.mps.empty_cache", side_effect=AssertionError("should not be called")):
+        from tts import _flush_device_cache
+        _flush_device_cache()
 
 
 def test_format_script():

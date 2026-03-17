@@ -40,7 +40,7 @@ All routes are served by a single FastAPI app (`app.py`) on port 8080. The scrip
 - Python 3.10+
 - [Ollama](https://ollama.ai) running locally
 - [VibeVoice](https://vibevoice.ai) installed
-- `ffmpeg` (for audio concatenation and MP3 encoding)
+- `ffmpeg` (required for chunked WAV concatenation and MP3 encoding)
 
 ---
 
@@ -119,7 +119,7 @@ Browse and play all generated podcast episodes. Each episode shows thumbnail, ti
 Paste any article URL and get a ready-to-record podcast script. Jobs run in the background — the page polls for completion automatically. Job history is tracked in your browser cookies so you can close the page and come back later.
 
 ### Script → Audio UI — `http://localhost:8080/generate-audio`
-Paste a script or upload a `.txt` file to synthesise an MP3. Same async job model — submit, close the page, return when done to download the file. Job history with download links is stored in browser cookies.
+Paste a script or upload a `.txt` file to synthesise an MP3. Blank scripts are rejected before synthesis starts. Same async job model — submit, close the page, return when done to download the file. Job history with download links is stored in browser cookies.
 
 ---
 
@@ -186,7 +186,7 @@ Edit `config.yaml` to change any default:
 | `ollama_prompt` | *(see config.yaml)* | System prompt for script generation |
 | `tts_voice` | `default` | VibeVoice voice profile |
 | `tts_voice_sample` | `""` | Path to a reference WAV for voice cloning |
-| `tts_chunk_sentences` | `10` | Sentences per TTS inference call |
+| `tts_chunk_sentences` | `10` | Sentences per TTS inference call; must be greater than `0` |
 | `scrape_timeout_sec` | `15` | HTTP request timeout |
 | `output_dir` | `./output` | Directory for generated MP3 files |
 | `web_port` | `8080` | Web UI + admin port |
@@ -212,7 +212,6 @@ url-to-podcast/
 ├── output/               # Generated MP3 files (watcher output)
 │   └── api_audio/        # MP3 files generated via the Audio API
 ├── metadata.json         # Episode metadata (auto-created)
-├── .pipeline.lock        # File lock for pipeline serialization (auto-created, in .gitignore)
 ├── config.yaml           # All configurable settings
 ├── run.sh                # Convenience launcher (starts app + watcher; port from config)
 │
@@ -266,10 +265,12 @@ url-to-podcast/
 - **No reprocessing:** URLs already in `metadata.json` are skipped on restart.
 - **Fault isolation:** A failure on one URL (bad page, Ollama error, TTS error) is logged and skipped — the watcher continues with the next URL.
 - **Single worker per API:** `job_queue.py` guarantees at most one `generate_script` and one `generate_audio` run at a time. Additional requests wait in a FIFO queue. This prevents resource exhaustion from concurrent LLM or TTS calls.
-- **Pipeline lock:** Only one full pipeline run (scrape → summarize → TTS) executes at a time across the watcher and the web app. A file lock (`.pipeline.lock` in the project root) ensures that if you trigger “Regenerate” from the admin UI while the watcher is already processing a URL, the second run waits for the first to finish. This avoids loading the TTS model twice and prevents out-of-memory errors on machines with limited RAM.
+- **In-process TTS serialization:** `tts.py` uses a process-wide lock so only one synthesis run can use VibeVoice at a time, even if the request came from the watcher, the audio API, or the admin regenerate flow. This reduces accelerator contention and avoids double-loading or overlapping model execution inside a single app process.
 - **Job persistence:** Job results are held in memory for the lifetime of the process. If you restart a server, in-flight jobs are lost. The audio files in `output/api_audio/` persist across restarts.
 - **Browser cookie tracking:** The script and audio UIs store job IDs in browser cookies (90-day expiry, up to 20 per UI). On return visits the page automatically resumes polling any in-progress jobs and shows completed job history.
 - **Long articles:** Content is truncated to `max_input_tokens` before being sent to the LLM.
+- **TTS validation:** Audio generation fails fast with clear errors when the script is empty, `tts_chunk_sentences` is invalid, or `ffmpeg` is unavailable.
+- **Apple Silicon safety:** MPS cache flushing is only used when MPS is actually available, which avoids post-chunk crashes on CPU-only macOS runs.
 - **Comments in urls.txt:** Lines starting with `#` are ignored.
 - **Thumbnails:** Extracted from `og:image` / `twitter:image` meta tags. Served through a local proxy (`/img?url=...`) with on-disk caching to avoid CORS and repeated fetches.
 - **Health checks:** `GET /health` available on the main server (port 8080). Also available when running `script_api.py` or `audio_api.py` standalone.
