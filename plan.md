@@ -333,7 +333,7 @@ The watcher still uses `urls.txt` as its source of truth, but the public home pa
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 brew install ollama ffmpeg    # macOS
-ollama pull llama3
+ollama pull gpt-oss:20b
 pip install vibevoice
 ```
 

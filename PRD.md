@@ -220,7 +220,7 @@ url-to-podcast/
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `ollama_model` | `llama3` | Ollama model to use |
+| `ollama_model` | `gpt-oss:20b` | Ollama model to use |
 | `ollama_url` | `http://localhost:11434` | Ollama API endpoint |
 | `ollama_prompt` | *(see config.yaml)* | System prompt for podcast script generation |
 | `tts_engine` | `vibevoice` | TTS engine name |

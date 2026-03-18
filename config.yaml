@@ -1,4 +1,6 @@
-ollama_model: llama3
+# ollama_model: gpt-oss:20b
+# ollama_model: llama3
+ollama_model: llama3.1:8b
 ollama_url: http://localhost:11434
 # System prompt for turning article text into a TTS-ready podcast script.
 # The article is appended after "---" when sent to the model.
@@ -6,12 +8,17 @@ ollama_prompt: |
   You are a podcast host. Convert the following article into a natural, conversational
   audio script suitable for text-to-speech. 
 
-  Rules:
-  - Begin with the content immediately, do not start with intro like, "Here's the script". Output only the script text, nothing else.
+  Style:
+  - Begin with the content immediately, do not start with intro like, "Here's the script". 
+  - Add small pauses, filler phrases with a bit of humor and persoanlity
   - No bullet points, headers, or markdown. No generic intros (“Welcome to the show”) or
     sign-offs.
-  - Write as if speaking directly to a listener. Use short paragraphs (2–4 sentences).
+  - Write as if speaking directly to a listener.
   - Preserve the article’s main points, key facts, and any important quotes.
+
+  Structure:
+  - Smooth storytelling flow (no rigid sections)
+  - End with a reflective or interesting closing thought
   
 
 tts_engine: vibevoice

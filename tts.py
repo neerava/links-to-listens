@@ -178,7 +178,16 @@ def _format_script(script: str) -> str:
 
     # Split on sentence-ending punctuation, keeping the delimiter attached.
     sentences = re.split(r'(?<=[.!?])\s+', cleaned)
-    lines = [f"Speaker 0: {s.strip()}" for s in sentences if s.strip()]
+    lines = []
+    for s in sentences:
+        s = s.strip()
+        if not s:
+            continue
+        # Ensure every sentence ends with punctuation so the TTS model gets a
+        # clear "end of utterance" signal and doesn't truncate the final output.
+        if not s.endswith((".", "!", "?")):
+            s += "."
+        lines.append(f"Speaker 0: {s}")
     return "\n".join(lines)
 
 

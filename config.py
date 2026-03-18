@@ -23,7 +23,7 @@ class ConfigError(ValueError):
 
 @dataclass
 class Settings:
-    ollama_model: str = "llama3"
+    ollama_model: str = "gpt-oss:20b"
     ollama_url: str = "http://localhost:11434"
     ollama_prompt: str = (
         "You are a podcast host. Convert the following article into a natural, conversational "

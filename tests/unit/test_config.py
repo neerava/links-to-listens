@@ -17,7 +17,7 @@ def _write_config(tmp_path: Path, data: dict) -> Path:
 def test_defaults_load(tmp_path):
     cfg = _write_config(tmp_path, {})
     s = load_settings(cfg)
-    assert s.ollama_model == "llama3"
+    assert s.ollama_model == "gpt-oss:20b"
     assert s.web_port == 8080
     assert s.poll_interval_sec == 5
     assert s.output_path.exists()
@@ -73,7 +73,7 @@ def test_missing_config_uses_defaults(tmp_path):
     missing = tmp_path / "nonexistent.yaml"
     # Should not raise; uses defaults
     s = load_settings(missing)
-    assert s.ollama_model == "llama3"
+    assert s.ollama_model == "gpt-oss:20b"
 
 
 def test_max_input_chars():

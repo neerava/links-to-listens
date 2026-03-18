@@ -119,7 +119,7 @@ All v1.7 functional requirements implemented and verified.
   - `config.py` / `config.yaml`: new `intermediate_retention_days` field; `pipeline_path` derived from `output_path / "pipeline"`
 
 ## Pre-launch checklist
-- [ ] Install Ollama and pull a model: `ollama pull llama3`
+- [ ] Install Ollama and pull a model: `ollama pull gpt-oss:20b`
 - [ ] Install VibeVoice: `pip install vibevoice`
 - [ ] Install ffmpeg: `brew install ffmpeg`
 - [ ] Optionally configure a voice sample: `tts_voice_sample` in `config.yaml`

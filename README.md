@@ -58,7 +58,7 @@ pip install -r requirements.txt
 
 # 3. Install and start Ollama, then pull a model
 brew install ollama          # macOS
-ollama pull llama3
+ollama pull gpt-oss:20b
 
 # 4. Install VibeVoice and ffmpeg
 pip install vibevoice
@@ -197,7 +197,7 @@ Edit `config.yaml` to change any default:
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `ollama_model` | `llama3` | Ollama model to use |
+| `ollama_model` | `gpt-oss:20b` | Ollama model to use |
 | `ollama_url` | `http://localhost:11434` | Ollama API endpoint |
 | `ollama_prompt` | *(see config.yaml)* | System prompt for script generation |
 | `tts_voice` | `default` | VibeVoice voice profile |
@@ -309,7 +309,7 @@ url-to-podcast/
 - **Browser cookie tracking:** The script and audio UIs store job IDs in browser cookies (90-day expiry, up to 20 per UI). On return visits the page automatically resumes polling any in-progress jobs and shows completed job history.
 - **Long articles:** Content is truncated to `max_input_tokens` before being sent to the LLM.
 - **TTS validation:** Audio generation fails fast with clear errors when the script is empty, `tts_chunk_sentences` is invalid, or `ffmpeg` is unavailable.
-- **TTS script normalization:** Before handing text to VibeVoice, embedded newlines and repeated whitespace are flattened so each emitted line cleanly matches the `Speaker N:` format expected by the upstream parser. This reduces noisy `Could not parse line` warnings during synthesis.
+- **TTS script normalization:** Before handing text to VibeVoice, embedded newlines and repeated whitespace are flattened so each emitted line cleanly matches the `Speaker N:` format expected by the upstream parser. Sentences that lack trailing punctuation (`.!?`) get a period appended so the model receives a clear end-of-utterance signal and does not truncate the final audio segment. This reduces noisy `Could not parse line` warnings during synthesis.
 - **Apple Silicon safety:** MPS cache flushing is only used when MPS is actually available, which avoids post-chunk crashes on CPU-only macOS runs.
 - **Comments in urls.txt:** Lines starting with `#` are ignored.
 - **Thumbnails:** Extracted from `og:image` / `twitter:image` meta tags. Served through a local proxy (`/img?url=...`) with on-disk caching to avoid CORS and repeated fetches.
