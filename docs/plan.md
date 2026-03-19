@@ -392,6 +392,17 @@ PODCAST_SCRIPT_API_PORT=9081 python script_api.py   # standalone only
 - **Modified files:** `config.py` (new settings), `watcher.py` (call image gen after script gen), `app.py` (serve local thumbnails), templates (handle local vs remote thumbnail URLs).
 - Always generate when Firefly is configured; scraped thumbnail used as fallback on failure or when unconfigured.
 
+**Refactoring**
+- **Incomplete `requirements.txt`:** Missing `torch`, `transformers`, `vibevoice`, `numpy` — fresh install cannot run TTS.
+- **Config defaults mismatch:** `config.py` defaults differ from `config.yaml` for `tts_use_float32` (False vs true), `tts_chunk_sentences` (10 vs 50), `scrape_timeout_sec` (15 vs 20).
+- **Test coverage gaps:** No tests for `pipeline_state.py`, `job_queue.py`, `script_api.py`, `audio_api.py`, `models.py`.
+- **`app.py` overloaded:** Image proxy (lines 164-200), admin API (78-141), web UI, and URL submission all in one file. Extract `image_proxy.py` and `admin_service.py`.
+- **Duplicated API boilerplate:** `script_api.py` and `audio_api.py` have near-identical job queue + router scaffolding. Extract shared helper.
+- **Duplicated HTTP error handling:** `scraper.py` and `summarizer.py` wrap httpx errors identically. Extract to `http_utils.py`.
+- **No exception hierarchy:** `ScraperError`, `SummarizerError`, `TTSError` all inherit `Exception` independently. Create `PipelineError` base in `exceptions.py`.
+- **Atomic write duplication:** `metadata.py` and `pipeline_state.py` both implement `.tmp` → rename pattern.
+- **Minor:** Duplicate `import os` in `tts.py:13,18`; template SVG repetition; `.gitignore` gaps.
+
 ### Known Limitations (v1.7)
 - Job results are in-memory only; restart loses all pending/running/done job state.
 - No process supervision (`supervisord`, `launchd`) — add for persistent background operation.

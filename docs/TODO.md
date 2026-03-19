@@ -150,7 +150,29 @@ All v1.7 functional requirements implemented and verified.
 - [ ] Admin authentication
 - [ ] Persistent job store (survive server restart)
 - [ ] Audio API job file cleanup / TTL policy
-- [ ] Tests for `script_api.py`, `audio_api.py`, `job_queue.py`
+
+## Refactoring backlog
+
+### High priority
+- [ ] Incomplete `requirements.txt` — missing `torch`, `transformers`, `vibevoice`, `numpy`; fresh install cannot run TTS
+- [ ] Config defaults mismatch between `config.py` and `config.yaml`:
+  - `tts_use_float32`: yaml=`true`, py=`False`
+  - `tts_chunk_sentences`: yaml=`50`, py=`10`
+  - `scrape_timeout_sec`: yaml=`20`, py=`15`
+- [ ] Test coverage gaps — no tests for `pipeline_state.py`, `job_queue.py`, `script_api.py`, `audio_api.py`, `models.py`
+- [ ] Duplicate `import os` in `tts.py:13,18`
+
+### Medium priority
+- [ ] `app.py` overloaded — image proxy (lines 164-200), admin API (78-141), web UI, URL submission all in one file; extract `image_proxy.py` and `admin_service.py`
+- [ ] Duplicated API boilerplate — `script_api.py` and `audio_api.py` have near-identical job queue setup, `/submit` + `/jobs/{id}` endpoints, and standalone app scaffolding; extract shared `create_api_router()` helper
+- [ ] Duplicated HTTP error handling — `scraper.py` and `summarizer.py` both wrap httpx timeout/request errors identically; extract to `http_utils.py`
+- [ ] No shared exception hierarchy — `ScraperError`, `SummarizerError`, `TTSError` each inherit from `Exception` independently; create `exceptions.py` with `PipelineError` base class
+- [ ] Atomic file write duplication — `metadata.py` and `pipeline_state.py` both implement `.tmp` → rename pattern; extract to shared utility
+
+### Low priority
+- [ ] Template SVG icon repetition — same podcast icon in `base.html`, `index.html`, `admin.html`; extract to Jinja2 macro in `partials/icons.html`
+- [ ] Flat file structure — fine at ~2.4K lines, consider packages (`core/`, `apis/`, `web/`) if project grows past ~3K
+- [ ] `.gitignore` minor gaps — missing `*.egg-info/`, `dist/`, `build/`, `*.log`
 
 ## Project workflow
 - [x] Update `README.md`, `docs/PRD.md`, `docs/plan.md`, and `docs/TODO.md` whenever code changes alter product behavior, APIs, or implementation details
