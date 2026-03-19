@@ -369,6 +369,29 @@ PODCAST_SCRIPT_API_PORT=9081 python script_api.py   # standalone only
 ### Project Hygiene
 - Update `README.md`, `PRD.md`, `plan.md`, and `TODO.md` whenever code changes alter product behavior, APIs, or implementation details.
 
+### Backlog
+
+**Publish episodes to rss.com via API**
+- One-click "Publish" button in the admin panel that uploads the episode MP3 to rss.com and creates the episode on the podcast feed.
+- **Flow:** get presigned S3 URL → PUT MP3 to S3 → create episode with `audio_upload_id`.
+- **API:** Base `https://api.rss.com/v4/`. Auth via `X-Api-Key` header (requires Network plan).
+  - `POST /v4/podcasts/{podcast_id}/assets/presigned-uploads` — body: `{asset_type: "audio", expected_mime: "audio/mpeg", filename}` → returns `{id, url}`.
+  - PUT MP3 to presigned S3 URL (no auth header).
+  - `POST /v4/podcasts/{podcast_id}/episodes` — body: `{title, description, audio_upload_id}` (title max 250, description max 4000).
+- **Config:** `rsscom_api_key` and `rsscom_podcast_id` in config.yaml (empty = disabled, hides Publish button).
+- **New file:** `rsscom.py` — presigned upload, S3 PUT, episode creation; raises `RssComError` on failure.
+- **Modified files:** `config.py` (new settings), `models.py` (add `rsscom_episode_id`), `app.py` (new `POST /admin/api/episodes/{id}/publish-rsscom` route, background thread), `templates/admin.html` (Publish button, modal confirm, toast).
+- Button shows "Publish" if not yet published, "Re-publish" if `rsscom_episode_id` is set.
+
+**AI-generated episode thumbnails via Adobe Firefly**
+- Currently thumbnails are scraped from og:image / twitter:image meta tags. This feature would generate unique article-themed artwork for every episode using Adobe Firefly.
+- **Flow:** article text → Ollama (generate image prompt) → Firefly API (text-to-image) → save to `output/thumbnails/{episode_id}.jpg`
+- **API:** `POST https://firefly-api.adobe.io/v3/images/generate-async` with `{prompt: "..."}`. Auth via OAuth token from `ims-na1.adobelogin.com` using client_id + client_secret.
+- **Config:** `firefly_client_id` and `firefly_client_secret` in config.yaml (empty = disabled, falls back to scraped thumbnail).
+- **New file:** `imagegen.py` — prompt generation (via Ollama) + Firefly API integration + image download/save.
+- **Modified files:** `config.py` (new settings), `watcher.py` (call image gen after script gen), `app.py` (serve local thumbnails), templates (handle local vs remote thumbnail URLs).
+- Always generate when Firefly is configured; scraped thumbnail used as fallback on failure or when unconfigured.
+
 ### Known Limitations (v1.7)
 - Job results are in-memory only; restart loses all pending/running/done job state.
 - No process supervision (`supervisord`, `launchd`) — add for persistent background operation.

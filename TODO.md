@@ -127,11 +127,26 @@ All v1.7 functional requirements implemented and verified.
 - [ ] Run the full end-to-end smoke test: `./run.sh`
 
 ## Out of scope (future)
+- [ ] Publish episodes to rss.com via API
+  - Two-step flow: presigned S3 upload → episode creation
+  - API: `POST https://api.rss.com/v4/podcasts/{podcast_id}/assets/presigned-uploads` then `POST .../episodes`
+  - Auth: `X-Api-Key` header (requires rss.com Network plan)
+  - Config: `rsscom_api_key`, `rsscom_podcast_id` (empty = disabled)
+  - New file: `rsscom.py` (presigned upload + S3 PUT + episode creation)
+  - Admin UI: "Publish" button per episode (only shown when configured), runs in background thread
+  - Episode model: add `rsscom_episode_id` field to track published state
 - [ ] RSS feed generation
 - [ ] Push notifications when an episode is ready
 - [ ] Support for paywalled content
 - [ ] Process supervision (`launchd`, `supervisord`)
-- [ ] AI-generated cover art when no og:image exists
+- [ ] AI-generated episode thumbnails via Adobe Firefly
+  - Use Ollama to generate an image prompt from article text
+  - Call Firefly API (`POST https://firefly-api.adobe.io/v3/images/generate-async`) to generate artwork
+  - Auth: Adobe Developer Console client_id + client_secret → OAuth token via `ims-na1.adobelogin.com`
+  - Config: `firefly_client_id`, `firefly_client_secret` (empty = disabled, falls back to scraped og:image)
+  - New file: `imagegen.py` (prompt generation + Firefly integration)
+  - Save generated images to `output/thumbnails/{episode_id}.jpg`
+  - Always generate when configured; scraped thumbnail as fallback on failure
 - [ ] Admin authentication
 - [ ] Persistent job store (survive server restart)
 - [ ] Audio API job file cleanup / TTL policy
