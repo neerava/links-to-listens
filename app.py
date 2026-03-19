@@ -71,7 +71,7 @@ async def admin_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         "admin.html",
-        {"episodes": episodes},
+        {"episodes": episodes, "podbean_enabled": settings.podbean_enabled},
     )
 
 
@@ -138,6 +138,50 @@ async def admin_regenerate(episode_id: str) -> JSONResponse:
         "status": "regenerating",
         "source_url": source_url,
         "message": "Regeneration started. The episode will be updated when complete.",
+    })
+
+
+@app.post("/admin/api/episodes/{episode_id}/publish-podbean")
+async def admin_publish_podbean(episode_id: str) -> JSONResponse:
+    """Publish an episode to Podbean (upload MP3 + create episode)."""
+    if not settings.podbean_enabled:
+        raise HTTPException(status_code=400, detail="Podbean is not configured")
+
+    ep = store.get_by_id(episode_id)
+    if not ep:
+        raise HTTPException(status_code=404, detail="Episode not found")
+
+    if ep.podbean_episode_id:
+        raise HTTPException(status_code=409, detail="Episode already published to Podbean")
+
+    audio_file = settings.output_path / ep.audio_path
+    if not audio_file.exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    from podbean import PodbeanError, publish_episode
+
+    def _publish() -> None:
+        try:
+            pod_id, pod_url = publish_episode(
+                client_id=settings.podbean_client_id,
+                client_secret=settings.podbean_client_secret,
+                mp3_path=audio_file,
+                title=ep.title,
+                description=ep.description or ep.title,
+            )
+            ep.podbean_episode_id = pod_id
+            ep.podbean_episode_url = pod_url
+            store.update(ep)
+            logger.info("Published to Podbean: %s -> %s", ep.id, pod_url)
+        except PodbeanError:
+            logger.exception("Podbean publish failed for episode %s", ep.id)
+
+    thread = threading.Thread(target=_publish, daemon=True)
+    thread.start()
+
+    return JSONResponse({
+        "status": "publishing",
+        "message": "Publishing to Podbean. The episode will be updated when complete.",
     })
 
 

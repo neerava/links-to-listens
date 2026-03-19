@@ -322,6 +322,13 @@ The watcher still uses `urls.txt` as its source of truth, but the public home pa
 - Use `respx` for mocking `httpx` calls
 - Mark tests requiring real Ollama/VibeVoice with `@pytest.mark.integration`
 
+### v1.8 — Podbean Publishing + Config Security
+- **Podbean publishing** — One-click "Publish to Podbean" button in the admin panel. New `podbean.py` module handles OAuth 2.0 auth (client credentials), presigned MP3 upload, and episode creation via the Podbean API. Publishing runs in a background daemon thread (same pattern as admin regenerate). Episode model extended with `podbean_episode_id` and `podbean_episode_url` fields. Button shows "Published" with a link when already published, hidden entirely when Podbean is not configured.
+- **Config security** — Renamed `config.yaml` → `config.yaml.sample` in git. `config.yaml` is now in `.gitignore` so secrets (Podbean credentials, future API keys) stay local. Users copy the sample to create their local config.
+- **New file:** `podbean.py` — `PodbeanError`, `get_access_token()`, `upload_audio()`, `create_episode()`, `publish_episode()`.
+- **Modified files:** `config.py` (2 new settings + `podbean_enabled` property), `models.py` (2 new fields), `app.py` (publish route + template context), `templates/admin.html` (Publish button + JS), `.gitignore` (config.yaml).
+- **Tests:** 13 new unit tests (`test_podbean.py`), 6 new integration tests. Total: 125 tests.
+
 ---
 
 ## 7. Deployment Plan

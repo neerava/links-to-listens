@@ -47,6 +47,9 @@
     .btn-danger:hover { border-color: var(--red); color: var(--red); }
     .btn-regen:hover { border-color: var(--green); color: var(--green); }
     .btn-hide:hover { border-color: var(--yellow); color: var(--yellow); }
+    .btn-publish:hover { border-color: #6c5ce7; color: #6c5ce7; }
+    .btn-published { border-color: var(--green); color: var(--green); opacity: 0.7; text-decoration: none; }
+    .btn-published:hover { background: var(--surface-hover); opacity: 1; }
     .toast {
       position: fixed; bottom: 1.25rem; left: 50%; transform: translateX(-50%) translateY(120%);
       background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
@@ -148,6 +151,19 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
               <span>Regen</span>
             </button>
+            {% if podbean_enabled %}
+              {% if ep.podbean_episode_id %}
+            <a class="btn btn-published" href="{{ ep.podbean_episode_url }}" target="_blank" rel="noopener" title="View on Podbean">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <span>Published</span>
+            </a>
+              {% else %}
+            <button class="btn btn-publish" onclick="confirmPublish('{{ ep.id }}', '{{ ep.title | truncate(40, True, '...') }}')" title="Publish to Podbean">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+              <span>Publish</span>
+            </button>
+              {% endif %}
+            {% endif %}
             <button class="btn btn-danger" onclick="confirmDelete('{{ ep.id }}', '{{ ep.title | truncate(40, True, '...') }}')" title="Delete permanently">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               <span>Delete</span>
@@ -205,6 +221,11 @@
     function confirmDelete(id, title) {
       openModal('Delete Episode', 'Permanently delete "' + title + '" and its audio? This cannot be undone.', async function() {
         try { await apiPost('/admin/api/episodes/' + id + '/delete'); document.getElementById('row-' + id).remove(); showToast('Deleted'); } catch (e) { showToast('Error: ' + e.message); }
+      });
+    }
+    function confirmPublish(id, title) {
+      openModal('Publish to Podbean', 'Upload "' + title + '" to Podbean? This will make it publicly available.', async function() {
+        try { await apiPost('/admin/api/episodes/' + id + '/publish-podbean'); showToast('Publishing started — refresh page to see status', 5000); } catch (e) { showToast('Error: ' + e.message); }
       });
     }
     function confirmRegen(id, url) {

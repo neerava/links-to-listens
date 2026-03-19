@@ -56,11 +56,14 @@ source .venv/bin/activate
 # 2. Install Python dependencies
 pip install -r requirements.txt
 
-# 3. Install and start Ollama, then pull a model
+# 3. Create your local config (config.yaml is gitignored)
+cp config.yaml.sample config.yaml
+
+# 4. Install and start Ollama, then pull a model
 brew install ollama          # macOS
 ollama pull gpt-oss:20b
 
-# 4. Install VibeVoice and ffmpeg
+# 5. Install VibeVoice and ffmpeg
 pip install vibevoice
 brew install ffmpeg
 ```
@@ -116,6 +119,7 @@ Browse and play all generated podcast episodes. Each episode shows thumbnail, ti
 - **Hide/Show** episodes from the public player
 - **Delete** episodes permanently (removes the audio file)
 - **Regenerate** episodes from their original URL (runs the full pipeline again)
+- **Publish to Podbean** — upload the episode MP3 and create it on your Podbean podcast (requires `podbean_client_id` and `podbean_client_secret` in `config.yaml`; button hidden when not configured)
 
 ### URL → Script UI — `http://localhost:8080/generate-script`
 Paste any article URL and get a ready-to-record podcast script. Jobs run in the background — the page polls for completion automatically. Job history is tracked in your browser cookies so you can close the page and come back later.
@@ -193,7 +197,7 @@ curl -OJ http://localhost:8080/generate-audio/jobs/9c4d2e.../download
 
 ## Configuration
 
-Edit `config.yaml` to change any default:
+Copy `config.yaml.sample` to `config.yaml` and edit (`config.yaml` is gitignored to keep secrets local):
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -215,6 +219,8 @@ Edit `config.yaml` to change any default:
 | `poll_interval_sec` | `5` | How often the watcher checks `urls.txt` |
 | `max_input_tokens` | `4096` | Max tokens of article text sent to LLM |
 | `intermediate_retention_days` | `3` | Days to keep intermediate files (`script.txt`, `tts_input.txt`) before auto-deletion |
+| `podbean_client_id` | `""` | Podbean App ID (empty = Publish button hidden) |
+| `podbean_client_secret` | `""` | Podbean App Secret |
 
 Any setting can also be overridden at runtime with a `PODCAST_` environment variable:
 
@@ -261,6 +267,7 @@ links-to-listens/
 ├── metadata.py           # Thread-safe atomic JSON episode store
 ├── app.py                # FastAPI app (port 8080): mounts script_router + audio_router, web UI, admin
 ├── models.py             # Episode dataclass
+├── podbean.py            # Podbean API client (OAuth, upload, publish)
 ├── config.py             # Settings loader, env-var overrides, validation
 │
 ├── templates/

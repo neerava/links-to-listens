@@ -14,6 +14,8 @@ class Episode:
     description: str = ""    # short summary of the article
     thumbnail_url: str = ""  # og:image or twitter:image from source page
     hidden: bool = False     # hidden episodes are excluded from the public UI
+    podbean_episode_id: str = ""   # Podbean episode ID (empty = not published)
+    podbean_episode_url: str = ""  # Podbean episode permalink
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
     def to_dict(self) -> dict:
@@ -26,6 +28,8 @@ class Episode:
             "audio_path": self.audio_path,
             "thumbnail_url": self.thumbnail_url,
             "hidden": self.hidden,
+            "podbean_episode_id": self.podbean_episode_id,
+            "podbean_episode_url": self.podbean_episode_url,
         }
 
     @classmethod
@@ -39,4 +43,6 @@ class Episode:
             audio_path=data["audio_path"],
             thumbnail_url=data.get("thumbnail_url", ""),
             hidden=data.get("hidden", False),
+            podbean_episode_id=data.get("podbean_episode_id", ""),
+            podbean_episode_url=data.get("podbean_episode_url", ""),
         )

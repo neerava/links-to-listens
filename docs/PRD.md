@@ -1,7 +1,7 @@
 # Product Requirements Document: Links to Listens
 
-**Version:** 1.7
-**Date:** 2026-03-17
+**Version:** 1.8
+**Date:** 2026-03-19
 **Status:** Implemented
 
 ---
@@ -119,6 +119,14 @@ The pipeline is split into two independent processing stages — one for script 
 - **FR-37:** After script generation, the system MUST save the raw Ollama output to `script.txt` and the Speaker-labelled VibeVoice input to `tts_input.txt` within the run directory.
 - **FR-38:** `state.json` and the final MP3 MUST never be auto-deleted. Intermediate files (`script.txt`, `tts_input.txt`) MUST be pruned automatically after `intermediate_retention_days` days (default: 3). Pruning MUST run at watcher startup and then once per day.
 - **FR-39:** The pipeline state machine MUST cover the watcher pipeline only. API jobs (Script API, Audio API) continue to use the existing in-memory job queue.
+
+### 5.12 Podbean Publishing
+- **FR-40:** The admin panel MUST provide a "Publish to Podbean" button per episode when `podbean_client_id` and `podbean_client_secret` are configured.
+- **FR-41:** Publishing MUST upload the episode MP3 to Podbean via OAuth 2.0 + presigned URL, then create the episode with title and description.
+- **FR-42:** Publishing MUST run in a background thread and return immediately. The episode's `podbean_episode_id` and `podbean_episode_url` MUST be persisted to metadata on success.
+- **FR-43:** An already-published episode MUST show a "Published" link to the Podbean URL instead of a Publish button.
+- **FR-44:** The Publish button MUST be hidden entirely when Podbean credentials are not configured.
+- **FR-45:** `config.yaml` MUST be gitignored. `config.yaml.sample` is the committed template with safe defaults and no secrets.
 
 ### 5.10 Browser Cookie Job Tracking
 - **FR-33:** Both web UIs MUST store submitted job IDs in browser cookies (up to 20 per UI, 90-day expiry).

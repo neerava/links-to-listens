@@ -19,9 +19,11 @@ venv/
 output/
 metadata.json
 urls.txt
+config.yaml
 
 # Voice samples (local only — potentially large WAV files, not for version control)
 voices/
 
 # Private local files
 docs/slack-post.md
+docs/reflection.md

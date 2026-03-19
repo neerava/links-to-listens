@@ -52,9 +52,15 @@ class Settings:
     max_input_tokens: int = 4096
     tts_chunk_sentences: int = 10  # sentences per TTS inference call; lower = less memory
     intermediate_retention_days: int = 3  # days to keep script.txt / tts_input.txt before auto-delete
+    podbean_client_id: str = ""      # Podbean App ID (empty = publishing disabled)
+    podbean_client_secret: str = ""  # Podbean App Secret
     # Derived at validation time
     output_path: Path = field(default=None, init=False)  # type: ignore[assignment]
     pipeline_path: Path = field(default=None, init=False)  # type: ignore[assignment]
+
+    @property
+    def podbean_enabled(self) -> bool:
+        return bool(self.podbean_client_id and self.podbean_client_secret)
 
     @property
     def max_input_chars(self) -> int:

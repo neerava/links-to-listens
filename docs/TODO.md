@@ -106,6 +106,16 @@ All v1.7 functional requirements implemented and verified.
   - `app.py` creates its own `PipelineStateStore` at module level (pointing to `output/pipeline/`) so admin-triggered regens appear in `output/pipeline/` just like watcher runs (`_pipeline_store` in `watcher.py` was always `None` in the web-app process)
   - TTS subprocess audit confirmed: all three callers of `generate_audio` (`_run_once`, `admin_regenerate`, `_audio_worker`) route through `synthesize()` and the VibeVoice subprocess; Script API does not call TTS
 
+### v1.8 — Podbean Publishing + Config Security
+- [x] TASK-29 Publish episodes to Podbean from admin UI
+  - New `podbean.py`: OAuth 2.0 auth, presigned MP3 upload, episode creation via Podbean API
+  - `config.py`: `podbean_client_id`, `podbean_client_secret` settings; `podbean_enabled` property
+  - `models.py`: `podbean_episode_id` and `podbean_episode_url` fields on Episode (backward-compatible)
+  - `app.py`: `POST /admin/api/episodes/{id}/publish-podbean` route; background thread (same pattern as regenerate)
+  - `templates/admin.html`: "Publish" button (when configured), "Published" link (when already published)
+  - 13 new unit tests (`test_podbean.py`) + 6 new integration tests
+- [x] Config security: renamed `config.yaml` → `config.yaml.sample` (tracked); `config.yaml` now in `.gitignore`
+
 ### v1.6 — Pipeline State Machine
 - [x] TASK-27 Watcher pipeline state machine (`pipeline_state.py`)
   - `Stage` enum: `pending → script → tts → done | failed`

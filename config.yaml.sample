@@ -54,3 +54,8 @@ tts_chunk_sentences: 50
 # After this period they are auto-deleted by the watcher (once per day).
 # The final MP3 and state.json are never auto-deleted.
 intermediate_retention_days: 3
+
+# Podbean publishing (optional — leave empty to disable)
+# Get App ID and App Secret from https://developers.podbean.com/
+# podbean_client_id: ""
+# podbean_client_secret: ""

@@ -287,3 +287,111 @@ def test_admin_regenerate(tmp_path):
     # Old episode should be deleted
     assert fake_store.get_by_id("regen-1") is None
     assert not mp3_path.exists()
+
+
+# ---------------------------------------------------------------------------
+# Podbean publishing tests
+# ---------------------------------------------------------------------------
+
+def test_admin_publish_podbean_returns_publishing(tmp_path):
+    from config import Settings
+    fake_settings = Settings()
+    fake_settings.output_path = tmp_path
+    fake_settings.podbean_client_id = "test_id"
+    fake_settings.podbean_client_secret = "test_secret"
+
+    mp3_path = tmp_path / "test-episode.mp3"
+    mp3_path.write_bytes(b"\xff\xfb\x90\x00" * 100)
+
+    from metadata import MetadataStore
+    fake_store = MetadataStore(tmp_path / "metadata.json")
+    fake_store.append(FAKE_EPISODE)
+
+    with patch("app.settings", fake_settings), \
+         patch("app.store", fake_store), \
+         patch("podbean.publish_episode", return_value=("ep_1", "https://podbean.com/ep/1")):
+        import app as app_module
+        with TestClient(app_module.app) as c:
+            resp = c.post(f"/admin/api/episodes/{FAKE_EPISODE.id}/publish-podbean")
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "publishing"
+
+
+def test_admin_publish_podbean_not_configured(client):
+    resp = client.post(f"/admin/api/episodes/{FAKE_EPISODE.id}/publish-podbean")
+    assert resp.status_code == 400
+    assert "not configured" in resp.json()["detail"]
+
+
+def test_admin_publish_podbean_already_published(tmp_path):
+    from config import Settings
+    fake_settings = Settings()
+    fake_settings.output_path = tmp_path
+    fake_settings.podbean_client_id = "test_id"
+    fake_settings.podbean_client_secret = "test_secret"
+
+    published_ep = Episode(
+        id="pub-1", title="Already Published",
+        source_url="https://example.com/pub",
+        timestamp="2026-03-16T00:00:00+00:00",
+        audio_path="pub.mp3",
+        podbean_episode_id="ep_existing",
+        podbean_episode_url="https://podbean.com/ep/existing",
+    )
+
+    from metadata import MetadataStore
+    fake_store = MetadataStore(tmp_path / "metadata.json")
+    fake_store.append(published_ep)
+
+    with patch("app.settings", fake_settings), patch("app.store", fake_store):
+        import app as app_module
+        with TestClient(app_module.app) as c:
+            resp = c.post("/admin/api/episodes/pub-1/publish-podbean")
+            assert resp.status_code == 409
+            assert "already published" in resp.json()["detail"]
+
+
+def test_admin_publish_podbean_episode_not_found(tmp_path):
+    from config import Settings
+    fake_settings = Settings()
+    fake_settings.output_path = tmp_path
+    fake_settings.podbean_client_id = "test_id"
+    fake_settings.podbean_client_secret = "test_secret"
+
+    from metadata import MetadataStore
+    fake_store = MetadataStore(tmp_path / "metadata.json")
+
+    with patch("app.settings", fake_settings), patch("app.store", fake_store):
+        import app as app_module
+        with TestClient(app_module.app) as c:
+            resp = c.post("/admin/api/episodes/nonexistent/publish-podbean")
+            assert resp.status_code == 404
+
+
+def test_admin_page_shows_publish_button_when_configured(tmp_path):
+    from config import Settings
+    fake_settings = Settings()
+    fake_settings.output_path = tmp_path
+    fake_settings.podbean_client_id = "test_id"
+    fake_settings.podbean_client_secret = "test_secret"
+
+    mp3_path = tmp_path / "test-episode.mp3"
+    mp3_path.write_bytes(b"\xff\xfb\x90\x00" * 100)
+
+    from metadata import MetadataStore
+    fake_store = MetadataStore(tmp_path / "metadata.json")
+    fake_store.append(FAKE_EPISODE)
+
+    with patch("app.settings", fake_settings), patch("app.store", fake_store):
+        import app as app_module
+        with TestClient(app_module.app) as c:
+            resp = c.get("/admin")
+            assert resp.status_code == 200
+            assert "Publish" in resp.text
+
+
+def test_admin_page_hides_publish_button_when_not_configured(client):
+    resp = client.get("/admin")
+    assert resp.status_code == 200
+    # The actual Publish button element should not appear when Podbean is not configured
+    assert 'onclick="confirmPublish' not in resp.text
