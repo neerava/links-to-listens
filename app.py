@@ -34,7 +34,7 @@ pipeline_store = PipelineStateStore(
 )
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
-app = FastAPI(title="URL to Podcast", docs_url=None, redoc_url=None)
+app = FastAPI(title="Links to Listens", docs_url=None, redoc_url=None)
 
 # Mount the two generation APIs under their own URI prefixes
 app.include_router(script_router, prefix="/generate-script")
@@ -188,7 +188,7 @@ async def image_proxy(url: str = Query(..., description="Remote image URL to pro
 
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
-            resp = await client.get(url, headers={"User-Agent": "url-to-podcast/1.0"})
+            resp = await client.get(url, headers={"User-Agent": "links-to-listens/1.0"})
         if resp.status_code != 200:
             raise HTTPException(status_code=502, detail="Failed to fetch image")
     except httpx.RequestError:

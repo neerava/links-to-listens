@@ -79,7 +79,7 @@ def scrape(url: str, settings: Settings | None = None) -> ScrapeResult:
             url,
             timeout=settings.scrape_timeout_sec,
             follow_redirects=True,
-            headers={"User-Agent": "url-to-podcast/1.0 (content summarizer)"},
+            headers={"User-Agent": "links-to-listens/1.0 (content summarizer)"},
         )
     except httpx.TimeoutException as exc:
         raise ScraperError(f"Request timed out after {settings.scrape_timeout_sec}s: {url}") from exc

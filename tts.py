@@ -140,7 +140,7 @@ def _get_silent_fallback() -> str:
     """Generate a 3-second silent 24 kHz mono WAV as a last-resort voice reference."""
     import numpy as np
 
-    voice_dir = Path(tempfile.gettempdir()) / "url-to-podcast-voices"
+    voice_dir = Path(tempfile.gettempdir()) / "links-to-listens-voices"
     voice_dir.mkdir(exist_ok=True)
     voice_path = voice_dir / "default_voice.wav"
 

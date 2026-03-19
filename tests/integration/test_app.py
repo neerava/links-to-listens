@@ -47,7 +47,7 @@ def client(tmp_path):
 def test_index_returns_200(client):
     resp = client.get("/")
     assert resp.status_code == 200
-    assert "URL to Podcast" in resp.text
+    assert "Links to Listens" in resp.text
     assert "Queue a New URL" in resp.text
 
 

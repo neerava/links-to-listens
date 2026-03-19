@@ -1,4 +1,4 @@
-# Product Requirements Document: URL-to-Podcast Summarizer
+# Product Requirements Document: Links to Listens
 
 **Version:** 1.7
 **Date:** 2026-03-17
@@ -177,7 +177,7 @@ urls.txt
 ## 8. File & Directory Structure
 
 ```
-url-to-podcast/
+links-to-listens/
 ├── urls.txt                  # Input: one URL per line
 ├── output/                   # Watcher-generated MP3 files
 │   ├── api_audio/            # Audio API job MP3 files

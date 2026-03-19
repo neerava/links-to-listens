@@ -1,4 +1,4 @@
-# URL to Podcast
+# Links to Listens
 
 Drop a URL into a text file. Get a listenable audio summary.
 
@@ -48,8 +48,8 @@ All routes are served by a single FastAPI app (`app.py`) on port 8080. The scrip
 
 ```bash
 # 1. Clone and create a virtual environment
-git clone <repo-url> url-to-podcast
-cd url-to-podcast
+git clone <repo-url> links-to-listens
+cd links-to-listens
 python3 -m venv .venv
 source .venv/bin/activate
 
@@ -240,7 +240,7 @@ The default setup (VibeVoice-1.5B, float16, 15 diffusion steps, 192 kbps MP3) ba
 ## Project structure
 
 ```
-url-to-podcast/
+links-to-listens/
 ├── urls.txt              # Input: one URL per line
 ├── output/               # Generated MP3 files (watcher output)
 │   ├── metadata.json     # Episode metadata (auto-created)
