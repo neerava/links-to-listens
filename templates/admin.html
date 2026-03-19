@@ -50,6 +50,17 @@
     .btn-publish:hover { border-color: #6c5ce7; color: #6c5ce7; }
     .btn-published { border-color: var(--green); color: var(--green); opacity: 0.7; text-decoration: none; }
     .btn-published:hover { background: var(--surface-hover); opacity: 1; }
+    .publish-form { text-align: left; }
+    .publish-form label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .publish-form input, .publish-form textarea {
+      width: 100%; padding: 0.5rem 0.65rem; font-size: 0.85rem; font-family: inherit;
+      background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+      margin-bottom: 0.75rem; resize: vertical;
+    }
+    .publish-form input:focus, .publish-form textarea:focus { outline: none; border-color: #6c5ce7; }
+    .publish-form textarea { min-height: 80px; }
+    .publish-form .thumb-preview { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; margin-bottom: 0.75rem; background: var(--surface-hover); }
+    .modal-wide { max-width: 500px; }
     .toast {
       position: fixed; bottom: 1.25rem; left: 50%; transform: translateX(-50%) translateY(120%);
       background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
@@ -158,7 +169,7 @@
               <span>Published</span>
             </a>
               {% else %}
-            <button class="btn btn-publish" onclick="confirmPublish('{{ ep.id }}', '{{ ep.title | truncate(40, True, '...') }}')" title="Publish to Podbean">
+            <button class="btn btn-publish" data-id="{{ ep.id }}" data-title="{{ ep.title | e }}" data-desc="{{ ep.description | e }}" data-thumb="{{ ep.thumbnail_url | e }}" onclick="openPublishForm(this)" title="Publish to Podbean">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
               <span>Publish</span>
             </button>
@@ -192,6 +203,29 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="publishOverlay">
+    <div class="modal modal-wide">
+      <h3>Publish to Podbean</h3>
+      <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:1rem;">Review and edit before publishing. These values are sent to Podbean only — your local episode data is unchanged.</p>
+      <div class="publish-form">
+        <input type="hidden" id="pubEpId">
+        <label for="pubTitle">Title</label>
+        <input type="text" id="pubTitle" maxlength="250" placeholder="Episode title">
+        <label for="pubDesc">Description</label>
+        <textarea id="pubDesc" maxlength="4000" placeholder="Episode description"></textarea>
+        <label for="pubLogo">Thumbnail <span style="font-weight:400;text-transform:none;">(optional — JPG/PNG/GIF, max 2 MB)</span></label>
+        <div style="display:flex;gap:0.75rem;align-items:flex-start;margin-bottom:0.75rem;">
+          <input type="file" id="pubLogo" accept=".jpg,.jpeg,.png,.gif" style="flex:1;margin-bottom:0;" onchange="previewLogo(this)">
+          <img id="pubThumb" class="thumb-preview" src="" alt="" style="display:none;">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closePublishForm()">Cancel</button>
+        <button class="btn btn-publish" onclick="submitPublish()" style="border-color:#6c5ce7;color:#6c5ce7;">Publish</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 {% endblock %}
 
@@ -205,8 +239,10 @@
       document.getElementById('modalConfirmBtn').onclick = function() { closeModal(); onConfirm(); };
       document.getElementById('modalOverlay').classList.add('active');
     }
-    async function apiPost(url) {
-      var r = await fetch(url, { method: 'POST' });
+    async function apiPost(url, body) {
+      var opts = { method: 'POST' };
+      if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
+      var r = await fetch(url, opts);
       if (!r.ok) { var e = await r.json().catch(function() { return { detail: 'Request failed' }; }); throw new Error(e.detail || 'Request failed'); }
       return r.json();
     }
@@ -223,17 +259,50 @@
         try { await apiPost('/admin/api/episodes/' + id + '/delete'); document.getElementById('row-' + id).remove(); showToast('Deleted'); } catch (e) { showToast('Error: ' + e.message); }
       });
     }
-    function confirmPublish(id, title) {
-      openModal('Publish to Podbean', 'Upload "' + title + '" to Podbean? This will make it publicly available.', async function() {
-        try { await apiPost('/admin/api/episodes/' + id + '/publish-podbean'); showToast('Publishing started — refresh page to see status', 5000); } catch (e) { showToast('Error: ' + e.message); }
-      });
+    function openPublishForm(btn) {
+      var id = btn.dataset.id, title = btn.dataset.title, desc = btn.dataset.desc, thumb = btn.dataset.thumb;
+      document.getElementById('pubEpId').value = id;
+      document.getElementById('pubTitle').value = title || '';
+      document.getElementById('pubDesc').value = desc || '';
+      document.getElementById('pubLogo').value = '';
+      var thumbImg = document.getElementById('pubThumb');
+      if (thumb) { thumbImg.src = '/img?url=' + encodeURIComponent(thumb); thumbImg.style.display = ''; } else { thumbImg.style.display = 'none'; }
+      document.getElementById('publishOverlay').classList.add('active');
+      document.getElementById('pubTitle').focus();
+    }
+    function closePublishForm() { document.getElementById('publishOverlay').classList.remove('active'); }
+    function previewLogo(input) {
+      var img = document.getElementById('pubThumb');
+      if (input.files && input.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) { img.src = e.target.result; img.style.display = ''; };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+    async function submitPublish() {
+      var id = document.getElementById('pubEpId').value;
+      var title = document.getElementById('pubTitle').value.trim();
+      var desc = document.getElementById('pubDesc').value.trim();
+      if (!title) { showToast('Title is required'); return; }
+      var fd = new FormData();
+      fd.append('title', title);
+      fd.append('description', desc);
+      var logoInput = document.getElementById('pubLogo');
+      if (logoInput.files && logoInput.files[0]) { fd.append('logo', logoInput.files[0]); }
+      closePublishForm();
+      try {
+        var r = await fetch('/admin/api/episodes/' + id + '/publish-podbean', { method: 'POST', body: fd });
+        if (!r.ok) { var e = await r.json().catch(function() { return { detail: 'Request failed' }; }); throw new Error(e.detail || 'Request failed'); }
+        showToast('Publishing started — refresh page to see status', 5000);
+      } catch (e) { showToast('Error: ' + e.message); }
     }
     function confirmRegen(id, url) {
       openModal('Regenerate', 'Re-process from: ' + url + '? This runs the full pipeline again.', async function() {
         try { await apiPost('/admin/api/episodes/' + id + '/regenerate'); document.getElementById('row-' + id).remove(); showToast('Regeneration started'); } catch (e) { showToast('Error: ' + e.message); }
       });
     }
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closeModal(); closePublishForm(); } });
     document.getElementById('modalOverlay').addEventListener('click', function(e) { if (e.target === e.currentTarget) closeModal(); });
+    document.getElementById('publishOverlay').addEventListener('click', function(e) { if (e.target === e.currentTarget) closePublishForm(); });
   </script>
 {% endblock %}

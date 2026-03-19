@@ -112,7 +112,7 @@ All v1.7 functional requirements implemented and verified.
   - `config.py`: `podbean_client_id`, `podbean_client_secret` settings; `podbean_enabled` property
   - `models.py`: `podbean_episode_id` and `podbean_episode_url` fields on Episode (backward-compatible)
   - `app.py`: `POST /admin/api/episodes/{id}/publish-podbean` route; background thread (same pattern as regenerate)
-  - `templates/admin.html`: "Publish" button (when configured), "Published" link (when already published)
+  - `templates/admin.html`: "Publish" button opens editable form (title, description, optional thumbnail upload with live preview); "Published" link when already published; edited values sent to Podbean only (local data unchanged)
   - 13 new unit tests (`test_podbean.py`) + 6 new integration tests
 - [x] Config security: renamed `config.yaml` → `config.yaml.sample` (tracked); `config.yaml` now in `.gitignore`
 

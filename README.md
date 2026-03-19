@@ -119,7 +119,7 @@ Browse and play all generated podcast episodes. Each episode shows thumbnail, ti
 - **Hide/Show** episodes from the public player
 - **Delete** episodes permanently (removes the audio file)
 - **Regenerate** episodes from their original URL (runs the full pipeline again)
-- **Publish to Podbean** — upload the episode MP3 and create it on your Podbean podcast (requires `podbean_client_id` and `podbean_client_secret` in `config.yaml`; button hidden when not configured)
+- **Publish to Podbean** — opens an editable form (title, description, and optional thumbnail upload) before uploading the episode MP3 to Podbean. Edited values are sent to Podbean only; local episode data stays unchanged. Requires `podbean_client_id` and `podbean_client_secret` in `config.yaml`; button hidden when not configured.
 
 ### URL → Script UI — `http://localhost:8080/generate-script`
 Paste any article URL and get a ready-to-record podcast script. Jobs run in the background — the page polls for completion automatically. Job history is tracked in your browser cookies so you can close the page and come back later.

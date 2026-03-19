@@ -125,6 +125,7 @@ The pipeline is split into two independent processing stages — one for script 
 - **FR-41:** Publishing MUST upload the episode MP3 to Podbean via OAuth 2.0 + presigned URL, then create the episode with title and description.
 - **FR-42:** Publishing MUST run in a background thread and return immediately. The episode's `podbean_episode_id` and `podbean_episode_url` MUST be persisted to metadata on success.
 - **FR-43:** An already-published episode MUST show a "Published" link to the Podbean URL instead of a Publish button.
+- **FR-43a:** Clicking "Publish" MUST open an editable form pre-filled with the episode's title, description, and thumbnail preview. The user MAY edit title and description, and optionally upload a new thumbnail image (JPG/PNG/GIF, max 2 MB) before confirming. Edited values are sent to Podbean only — local episode data is unchanged.
 - **FR-44:** The Publish button MUST be hidden entirely when Podbean credentials are not configured.
 - **FR-45:** `config.yaml` MUST be gitignored. `config.yaml.sample` is the committed template with safe defaults and no secrets.
 

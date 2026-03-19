@@ -62,7 +62,7 @@ Key settings: `ollama_model`, `ollama_url`, `tts_ddpm_steps`, `tts_cfg_scale`, `
 - **TTS subprocess isolation:** Each `synthesize()` call spawns a fresh `spawn`-method subprocess; exits to reclaim GPU/MPS memory.
 - **Intermediate files:** `output/pipeline/{run-id}/` — `state.json` kept forever; `input_text.txt` (scraped article), `prompt.txt` (full Ollama prompt), `script.txt`, `tts_input.txt` pruned after `intermediate_retention_days` days.
 - **Comments in urls.txt:** Lines starting with `#` are ignored.
-- **Podbean publishing:** Optional one-click publish from admin UI. Requires `podbean_client_id` and `podbean_client_secret` in `config.yaml`. Runs in a background thread (same pattern as regenerate).
+- **Podbean publishing:** Admin UI shows an editable publish form (title, description, optional thumbnail upload) before uploading to Podbean. Edited values go to Podbean only; local episode data unchanged. Requires `podbean_client_id` and `podbean_client_secret` in `config.yaml`. Runs in a background thread (same pattern as regenerate).
 
 ## Documentation Workflow
 

@@ -106,22 +106,88 @@ def upload_audio(access_token: str, mp3_path: Path) -> str:
     return file_key
 
 
+def upload_logo(access_token: str, image_path: Path) -> str:
+    """Upload an episode logo image to Podbean. Returns the logo_key."""
+    if not image_path.exists():
+        raise PodbeanError(f"Image file not found: {image_path}")
+
+    file_size = image_path.stat().st_size
+    max_logo_size = 2 * 1024 * 1024  # 2 MB
+    if file_size > max_logo_size:
+        raise PodbeanError(
+            f"Image too large ({file_size / 1024:.0f} KB). Podbean limit is 2 MB."
+        )
+
+    suffix = image_path.suffix.lower()
+    content_types = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif"}
+    content_type = content_types.get(suffix, "image/jpeg")
+
+    try:
+        resp = httpx.get(
+            PODBEAN_UPLOAD_AUTH_URL,
+            params={
+                "access_token": access_token,
+                "filename": image_path.name,
+                "filesize": file_size,
+                "content_type": content_type,
+            },
+            timeout=API_TIMEOUT,
+        )
+    except httpx.TimeoutException as exc:
+        raise PodbeanError("Podbean logo upload authorization timed out") from exc
+    except httpx.RequestError as exc:
+        raise PodbeanError(f"Network error during logo upload auth: {exc}") from exc
+
+    if resp.status_code != 200:
+        raise PodbeanError(f"Logo upload authorization failed (HTTP {resp.status_code}): {resp.text}")
+
+    auth_data = resp.json()
+    presigned_url = auth_data.get("presigned_url")
+    file_key = auth_data.get("file_key")
+    if not presigned_url or not file_key:
+        raise PodbeanError(f"Missing presigned_url or file_key in logo response: {auth_data}")
+
+    logger.info("Uploading logo %s (%d bytes) to Podbean...", image_path.name, file_size)
+    try:
+        with open(image_path, "rb") as f:
+            put_resp = httpx.put(
+                presigned_url,
+                content=f,
+                headers={"Content-Type": content_type},
+                timeout=API_TIMEOUT,
+            )
+    except httpx.TimeoutException as exc:
+        raise PodbeanError("Logo upload to Podbean timed out") from exc
+    except httpx.RequestError as exc:
+        raise PodbeanError(f"Network error during logo upload: {exc}") from exc
+
+    if put_resp.status_code >= 400:
+        raise PodbeanError(f"Logo upload failed (HTTP {put_resp.status_code}): {put_resp.text}")
+
+    logger.info("Logo upload complete, file_key: %s", file_key)
+    return file_key
+
+
 def create_episode(
     access_token: str, title: str, description: str, media_key: str,
-    status: str = "publish",
+    status: str = "publish", logo_key: str = "",
 ) -> tuple[str, str]:
     """Create an episode on Podbean. Returns (episode_id, episode_url)."""
+    payload = {
+        "access_token": access_token,
+        "title": title,
+        "content": description,
+        "media_key": media_key,
+        "type": "public",
+        "status": status,
+    }
+    if logo_key:
+        payload["logo_key"] = logo_key
+
     try:
         resp = httpx.post(
             PODBEAN_EPISODES_URL,
-            data={
-                "access_token": access_token,
-                "title": title,
-                "content": description,
-                "media_key": media_key,
-                "type": "public",
-                "status": status,
-            },
+            data=payload,
             timeout=API_TIMEOUT,
         )
     except httpx.TimeoutException as exc:
@@ -143,14 +209,19 @@ def create_episode(
 
 def publish_episode(
     client_id: str, client_secret: str, mp3_path: Path,
-    title: str, description: str,
+    title: str, description: str, logo_path: Path | None = None,
 ) -> tuple[str, str]:
     """High-level: auth + upload + create. Returns (episode_id, episode_url)."""
     logger.info("Publishing to Podbean: %s", title)
 
     token = get_access_token(client_id, client_secret)
     file_key = upload_audio(token, mp3_path)
-    episode_id, episode_url = create_episode(token, title, description, file_key)
+
+    logo_key = ""
+    if logo_path:
+        logo_key = upload_logo(token, logo_path)
+
+    episode_id, episode_url = create_episode(token, title, description, file_key, logo_key=logo_key)
 
     logger.info("Published to Podbean: %s (%s)", episode_id, episode_url)
     return episode_id, episode_url

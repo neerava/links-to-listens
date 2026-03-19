@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
@@ -142,8 +142,16 @@ async def admin_regenerate(episode_id: str) -> JSONResponse:
 
 
 @app.post("/admin/api/episodes/{episode_id}/publish-podbean")
-async def admin_publish_podbean(episode_id: str) -> JSONResponse:
-    """Publish an episode to Podbean (upload MP3 + create episode)."""
+async def admin_publish_podbean(
+    episode_id: str,
+    title: str = Form(default=""),
+    description: str = Form(default=""),
+    logo: UploadFile | None = File(default=None),
+) -> JSONResponse:
+    """Publish an episode to Podbean (upload MP3 + create episode).
+
+    Accepts multipart form with optional title, description, and logo image overrides.
+    """
     if not settings.podbean_enabled:
         raise HTTPException(status_code=400, detail="Podbean is not configured")
 
@@ -158,6 +166,25 @@ async def admin_publish_podbean(episode_id: str) -> JSONResponse:
     if not audio_file.exists():
         raise HTTPException(status_code=404, detail="Audio file not found")
 
+    # Use overrides from form, fall back to episode data
+    pub_title = title.strip() or ep.title
+    pub_description = description.strip() or ep.description or ep.title
+
+    # Save uploaded logo to a temp file if provided
+    logo_path: Path | None = None
+    if logo and logo.filename:
+        import tempfile
+        suffix = Path(logo.filename).suffix.lower()
+        if suffix not in (".jpg", ".jpeg", ".png", ".gif"):
+            raise HTTPException(status_code=400, detail="Logo must be JPG, PNG, or GIF")
+        logo_data = await logo.read()
+        if len(logo_data) > 2 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Logo must be under 2 MB")
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir=str(settings.output_path))
+        tmp.write(logo_data)
+        tmp.close()
+        logo_path = Path(tmp.name)
+
     from podbean import PodbeanError, publish_episode
 
     def _publish() -> None:
@@ -166,8 +193,9 @@ async def admin_publish_podbean(episode_id: str) -> JSONResponse:
                 client_id=settings.podbean_client_id,
                 client_secret=settings.podbean_client_secret,
                 mp3_path=audio_file,
-                title=ep.title,
-                description=ep.description or ep.title,
+                title=pub_title,
+                description=pub_description,
+                logo_path=logo_path,
             )
             ep.podbean_episode_id = pod_id
             ep.podbean_episode_url = pod_url
@@ -175,6 +203,9 @@ async def admin_publish_podbean(episode_id: str) -> JSONResponse:
             logger.info("Published to Podbean: %s -> %s", ep.id, pod_url)
         except PodbeanError:
             logger.exception("Podbean publish failed for episode %s", ep.id)
+        finally:
+            if logo_path and logo_path.exists():
+                logo_path.unlink(missing_ok=True)
 
     thread = threading.Thread(target=_publish, daemon=True)
     thread.start()
