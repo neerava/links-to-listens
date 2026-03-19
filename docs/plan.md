@@ -367,7 +367,7 @@ PODCAST_SCRIPT_API_PORT=9081 python script_api.py   # standalone only
 - `urls.txt` — writable by running user
 
 ### Project Hygiene
-- Update `README.md`, `PRD.md`, `plan.md`, and `TODO.md` whenever code changes alter product behavior, APIs, or implementation details.
+- Update `README.md`, `docs/PRD.md`, `docs/plan.md`, and `docs/TODO.md` whenever code changes alter product behavior, APIs, or implementation details.
 
 ### Backlog
 

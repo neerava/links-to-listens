@@ -11,7 +11,7 @@ from models import Episode
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_PATH = Path(__file__).parent / "metadata.json"
+DEFAULT_PATH = Path(__file__).parent / "output" / "metadata.json"
 
 
 class MetadataStore:

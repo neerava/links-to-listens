@@ -243,9 +243,9 @@ The default setup (VibeVoice-1.5B, float16, 15 diffusion steps, 192 kbps MP3) ba
 url-to-podcast/
 ├── urls.txt              # Input: one URL per line
 ├── output/               # Generated MP3 files (watcher output)
+│   ├── metadata.json     # Episode metadata (auto-created)
 │   ├── api_audio/        # MP3 files generated via the Audio API
 │   └── pipeline/         # Per-run state dirs: {run-id}/state.json, input_text.txt, prompt.txt, script.txt, tts_input.txt
-├── metadata.json         # Episode metadata (auto-created)
 ├── .pipeline.lock       # File lock for pipeline serialization (auto-created, in .gitignore)
 ├── config.yaml           # All configurable settings
 ├── run.sh                # Convenience launcher (starts app + watcher; port from config)
@@ -271,6 +271,11 @@ url-to-podcast/
 │   ├── admin.html        # Admin panel — hide, delete, regenerate (extends base)
 │   ├── script_ui.html    # URL → script web UI (extends base)
 │   └── audio_ui.html     # Script → audio web UI (extends base)
+│
+├── docs/
+│   ├── PRD.md            # Product requirements document
+│   ├── plan.md           # Implementation plan and backlog
+│   └── TODO.md           # Task tracking and backlog
 │
 ├── tests/
 │   ├── unit/             # No external dependencies
@@ -298,13 +303,13 @@ url-to-podcast/
 
 ## Notes
 
-- **No reprocessing:** URLs already in `metadata.json` are skipped on restart.
+- **No reprocessing:** URLs already in `output/metadata.json` are skipped on restart.
 - **Fault isolation:** A failure on one URL (bad page, Ollama error, TTS error) is logged and skipped — the watcher continues with the next URL.
 - **Home-page URL queueing:** `POST /api/urls` validates and appends new links to `urls.txt`. Duplicate queued URLs are ignored, and already-processed URLs are reported without being re-added.
 - **Single worker per API:** `job_queue.py` guarantees at most one `generate_script` and one `generate_audio` run at a time. Additional requests wait in a FIFO queue. This prevents resource exhaustion from concurrent LLM or TTS calls.
 - **VibeVoice subprocess isolation:** Each call to `synthesize()` in `tts.py` spawns a fresh `multiprocessing` subprocess (using the `spawn` start method). The subprocess loads the VibeVoice model, generates all audio chunks, writes the merged WAV, and then exits. Process exit reclaims all GPU/MPS memory cleanly with no residual state between runs. A parent-process lock (`_tts_lock`) serialises concurrent calls so only one synthesis subprocess runs at a time. A hard timeout of 30 minutes applies per synthesis call. Tests bypass the subprocess via `PODCAST_TTS_IN_PROCESS=1` (set in `tests/conftest.py`) so mocks remain visible to the test process.
 - **Pipeline lock:** Only one full pipeline run (scrape → summarize → TTS) executes at a time across the watcher and the web app. A file lock (`.pipeline.lock` in the project root) ensures that if you trigger “Regenerate” from the admin UI while the watcher is already processing a URL, the second run waits for the first to finish. This avoids loading the TTS model twice and prevents out-of-memory errors on machines with limited RAM.
-- **Admin regenerate double-processing guard:** When the admin “Regenerate” action runs, the old episode is **not deleted** from `metadata.json` immediately. Because the watcher skips any URL where `is_processed()` returns true (i.e., the URL has an entry in `metadata.json`), keeping the old entry in place prevents the watcher from picking up and re-processing the URL concurrently. A background thread calls `process_url()`, and only on success does it delete the old episode and audio file, then write the new episode to `metadata.json`. On failure the old episode remains in `metadata.json` (so the user still sees the previous version) and the watcher continues to skip the URL.
+- **Admin regenerate double-processing guard:** When the admin “Regenerate” action runs, the old episode is **not deleted** from `output/metadata.json` immediately. Because the watcher skips any URL where `is_processed()` returns true (i.e., the URL has an entry in `output/metadata.json`), keeping the old entry in place prevents the watcher from picking up and re-processing the URL concurrently. A background thread calls `process_url()`, and only on success does it delete the old episode and audio file, then write the new episode to `metadata.json`. On failure the old episode remains in `output/metadata.json` (so the user still sees the previous version) and the watcher continues to skip the URL.
 - **Job persistence:** Job results are held in memory for the lifetime of the process. If you restart a server, in-flight jobs are lost. The audio files in `output/api_audio/` persist across restarts.
 - **Browser cookie tracking:** The script and audio UIs store job IDs in browser cookies (90-day expiry, up to 20 per UI). On return visits the page automatically resumes polling any in-progress jobs and shows completed job history.
 - **Long articles:** Content is truncated to `max_input_tokens` before being sent to the LLM.
@@ -316,4 +321,4 @@ url-to-podcast/
 - **Health checks:** `GET /health` available on the main server (port 8080). Also available when running `script_api.py` or `audio_api.py` standalone.
 - **Single process:** `run.sh` starts one uvicorn process (`app:app` on port 8080) plus the watcher. There is no longer a separate process for the script or audio APIs.
 - **Pipeline state & intermediates:** Each watcher run creates a directory `output/pipeline/{run-id}/` containing a `state.json` (stage, timestamps, paths, error — never auto-deleted), `input_text.txt` (scraped article text), `prompt.txt` (full Ollama prompt), `script.txt` (raw Ollama output), and `tts_input.txt` (Speaker-labelled VibeVoice input). The intermediate files (`input_text.txt`, `prompt.txt`, `script.txt`, `tts_input.txt`) are automatically pruned after `intermediate_retention_days` (default 3) days; `state.json` and the final MP3 are never touched by the pruner. Pruning runs at watcher startup and then once per day. This state machine covers the watcher pipeline only; API jobs use the existing in-memory job queue.
-- **Documentation workflow:** When behavior changes in code, the repo docs (`README.md`, `PRD.md`, `plan.md`, `TODO.md`) should be updated in the same change.
+- **Documentation workflow:** When behavior changes in code, the repo docs (`README.md`, `docs/PRD.md`, `docs/plan.md`, `docs/TODO.md`) should be updated in the same change.

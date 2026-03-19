@@ -25,7 +25,7 @@ Single FastAPI app on port 8080 (`app.py`). Script and audio APIs are routers mo
 | `tts.py` | VibeVoice TTS; each synthesis runs in a fresh subprocess |
 | `scraper.py` | Web scraping (httpx + trafilatura) |
 | `summarizer.py` | Ollama LLM integration |
-| `metadata.py` | Thread-safe atomic JSON episode store (`metadata.json`) |
+| `metadata.py` | Thread-safe atomic JSON episode store (`output/metadata.json`) |
 | `config.py` | Settings loader; env-var overrides via `PODCAST_<KEY>` |
 | `models.py` | Episode dataclass |
 | `templates/` | Jinja2 HTML templates (extend `base.html`) |
@@ -57,11 +57,11 @@ Key settings: `ollama_model`, `ollama_url`, `tts_ddpm_steps`, `tts_cfg_scale`, `
 ## Important Behaviours
 
 - **Pipeline lock:** `.pipeline.lock` serialises concurrent pipeline runs across watcher and web app to prevent OOM from dual TTS loads.
-- **Admin regenerate guard:** Old episode stays in `metadata.json` until new one succeeds, preventing watcher from double-processing.
+- **Admin regenerate guard:** Old episode stays in `output/metadata.json` until new one succeeds, preventing watcher from double-processing.
 - **TTS subprocess isolation:** Each `synthesize()` call spawns a fresh `spawn`-method subprocess; exits to reclaim GPU/MPS memory.
 - **Intermediate files:** `output/pipeline/{run-id}/` — `state.json` kept forever; `input_text.txt` (scraped article), `prompt.txt` (full Ollama prompt), `script.txt`, `tts_input.txt` pruned after `intermediate_retention_days` days.
 - **Comments in urls.txt:** Lines starting with `#` are ignored.
 
 ## Documentation Workflow
 
-When behaviour changes in code, update `README.md`, `PRD.md`, `plan.md`, and `TODO.md` in the same change.
+When behaviour changes in code, update `README.md`, `docs/PRD.md`, `docs/plan.md`, and `docs/TODO.md` in the same change.

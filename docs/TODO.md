@@ -153,4 +153,4 @@ All v1.7 functional requirements implemented and verified.
 - [ ] Tests for `script_api.py`, `audio_api.py`, `job_queue.py`
 
 ## Project workflow
-- [x] Update `README.md`, `PRD.md`, `plan.md`, and `TODO.md` whenever code changes alter product behavior, APIs, or implementation details
+- [x] Update `README.md`, `docs/PRD.md`, `docs/plan.md`, and `docs/TODO.md` whenever code changes alter product behavior, APIs, or implementation details
