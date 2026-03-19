@@ -150,6 +150,11 @@ All v1.7 functional requirements implemented and verified.
 - [ ] Admin authentication
 - [ ] Persistent job store (survive server restart)
 - [ ] Audio API job file cleanup / TTL policy
+- [ ] Pipeline restart/resume capability
+  - Auto-resume on startup: watcher scans `output/pipeline/*/state.json` for runs stuck in `SCRIPT` or `TTS` stage and re-queues them
+  - Manual retry from admin UI: "Retry" button on failed or interrupted pipeline runs
+  - Design considerations: idempotency (don't re-scrape if `script.txt` exists), duplicate detection (skip URLs already queued), stale run timeout (don't resume runs older than N days)
+  - Modified files: `watcher.py`, `pipeline_state.py`, `app.py`, `templates/admin.html`
 
 ## Refactoring backlog
 

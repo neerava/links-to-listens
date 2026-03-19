@@ -392,6 +392,13 @@ PODCAST_SCRIPT_API_PORT=9081 python script_api.py   # standalone only
 - **Modified files:** `config.py` (new settings), `watcher.py` (call image gen after script gen), `app.py` (serve local thumbnails), templates (handle local vs remote thumbnail URLs).
 - Always generate when Firefly is configured; scraped thumbnail used as fallback on failure or when unconfigured.
 
+**Pipeline restart/resume capability**
+- On crash or restart, in-progress pipeline runs (stuck in `SCRIPT` or `TTS` stage) are abandoned with no recovery path. This feature adds both automatic and manual recovery.
+- **Auto-resume on startup:** Watcher scans `output/pipeline/*/state.json` for runs in non-terminal stages (`SCRIPT`, `TTS`). Runs newer than a configurable stale threshold are re-queued. Idempotent: if `script.txt` already exists, skip straight to TTS; if the URL is already queued, skip.
+- **Manual retry from admin UI:** "Retry" button on failed or interrupted runs in the admin page. Submits the URL back through the pipeline, reusing existing intermediate files where possible.
+- **Config:** `resume_stale_threshold_hours` in config.yaml (default 24; runs older than this are not auto-resumed).
+- **Modified files:** `watcher.py` (startup scan + re-queue logic), `pipeline_state.py` (query for non-terminal runs), `app.py` (retry endpoint), `templates/admin.html` (Retry button).
+
 **Refactoring**
 - **Incomplete `requirements.txt`:** Missing `torch`, `transformers`, `vibevoice`, `numpy` — fresh install cannot run TTS.
 - **Config defaults mismatch:** `config.py` defaults differ from `config.yaml` for `tts_use_float32` (False vs true), `tts_chunk_sentences` (10 vs 50), `scrape_timeout_sec` (15 vs 20).
