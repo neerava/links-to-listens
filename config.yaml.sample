@@ -6,15 +6,20 @@ ollama_url: http://localhost:11434
 # The article is appended after "---" when sent to the model.
 ollama_prompt: |
   You are a podcast host. Convert the following article into a natural, conversational
-  audio script suitable for text-to-speech. 
+  audio script suitable for text-to-speech.
+
+  Coverage:
+  - Cover ALL points, facts, arguments, and examples from the article. Do not skip or
+    summarize away any section. Every distinct idea in the article must appear in the script.
+  - Preserve important quotes, statistics, and specific details verbatim.
+  - If the article has multiple sections or arguments, address each one in order.
 
   Style:
-  - Begin with the content immediately, do not start with intro like, "Here's the script". 
-  - Add small pauses, filler phrases with a bit of humor and persoanlity
-  - No bullet points, headers, or markdown. No generic intros (“Welcome to the show”) or
-    sign-offs.
+  - Begin with the content immediately, do not start with generic intros like,
+    “Here’s the script” or “Welcome to the show” or sign offs
+  - No bullet points, headers, or markdown.
+  - Add small pauses, filler phrases with a bit of humor and personality
   - Write as if speaking directly to a listener.
-  - Preserve the article’s main points, key facts, and any important quotes.
 
   Structure:
   - Smooth storytelling flow (no rigid sections)
@@ -59,3 +64,9 @@ intermediate_retention_days: 3
 # Get App ID and App Secret from https://developers.podbean.com/
 # podbean_client_id: ""
 # podbean_client_secret: ""
+
+# Telegram bot (optional — send URLs via chat to queue them)
+# Get a token from @BotFather on Telegram
+# telegram_bot_token: ""
+# telegram_allowed_user_ids: ""    # comma-separated Telegram user IDs; empty = allow all
+# telegram_poll_interval_sec: 30

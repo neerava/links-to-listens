@@ -322,6 +322,16 @@ The watcher still uses `urls.txt` as its source of truth, but the public home pa
 - Use `respx` for mocking `httpx` calls
 - Mark tests requiring real Ollama/VibeVoice with `@pytest.mark.integration`
 
+### v1.9a — Bug Fix: Config validation race condition
+- **Issue:** `FileNotFoundError` on `output/.write_test` during startup when multiple processes (app, watcher, telegram bot) run `_validate()` concurrently. One process deletes the temp file between another's `touch()` and `unlink()`.
+- **Fix:** `test_file.unlink(missing_ok=True)` in `config.py`. Single-line change, no behavioral impact — the write test still validates that the output dir is writable.
+
+### v1.9 — Telegram Bot
+- **Telegram bot** — Optional Telegram bot (`telegram_bot.py`) that accepts URLs via chat and queues them for processing using the existing `enqueue_url()` function. Extracts URLs from messages with surrounding text using Telegram entity detection + regex fallback. Runs as a separate process launched by `run.sh` when `telegram_bot_token` is configured. Replies with queued/already queued/already processed/invalid/no URL found status. Optional access control via `telegram_allowed_user_ids` (comma-separated Telegram user IDs; empty = allow all). Configurable poll interval via `telegram_poll_interval_sec` (default 30s). Uses `python-telegram-bot` v21+ with long-polling.
+- **New file:** `telegram_bot.py` — `extract_url()`, `is_authorized()`, `start_command()`, `handle_message()`, `run()`.
+- **Modified files:** `config.py` (3 new settings + 3 properties), `config.yaml.sample`, `requirements.txt`, `run.sh` (conditional launch).
+- **Tests:** 16 new unit tests (`test_telegram_bot.py`). Total: 141 tests.
+
 ### v1.8 — Podbean Publishing + Config Security
 - **Podbean publishing** — "Publish to Podbean" button in the admin panel opens an editable form (title, description, optional thumbnail upload with live preview) before publishing. Edited values are sent to Podbean only — local episode data stays unchanged. New `podbean.py` module handles OAuth 2.0 auth (client credentials), presigned MP3 upload, optional logo image upload, and episode creation via the Podbean API. The publish route accepts multipart form with title, description, and optional logo file. Publishing runs in a background daemon thread (same pattern as admin regenerate). Episode model extended with `podbean_episode_id` and `podbean_episode_url` fields. Button shows "Published" with a link when already published, hidden entirely when Podbean is not configured.
 - **Config security** — Renamed `config.yaml` → `config.yaml.sample` in git. `config.yaml` is now in `.gitignore` so secrets (Podbean credentials, future API keys) stay local. Users copy the sample to create their local config.

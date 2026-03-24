@@ -106,6 +106,22 @@ All v1.7 functional requirements implemented and verified.
   - `app.py` creates its own `PipelineStateStore` at module level (pointing to `output/pipeline/`) so admin-triggered regens appear in `output/pipeline/` just like watcher runs (`_pipeline_store` in `watcher.py` was always `None` in the web-app process)
   - TTS subprocess audit confirmed: all three callers of `generate_audio` (`_run_once`, `admin_regenerate`, `_audio_worker`) route through `synthesize()` and the VibeVoice subprocess; Script API does not call TTS
 
+### v1.9a — Bug Fix
+- [x] Fix `FileNotFoundError` in `config.py:_validate()` on `.write_test` file
+  - **Root cause:** Multiple processes (app, watcher, telegram bot) call `_validate()` at startup, each creating and deleting `output/.write_test`. A race condition occurs when one process deletes the file between another's `touch()` and `unlink()` calls.
+  - **Fix:** `test_file.unlink(missing_ok=True)` in `config.py:185`
+
+### v1.9 — Telegram Bot
+- [x] TASK-30 Telegram bot for URL queueing
+  - New `telegram_bot.py`: accepts URLs via Telegram chat, queues via `enqueue_url()`
+  - `extract_url()`: extracts URL from messages with surrounding text using Telegram entity detection + regex fallback
+  - `/start` command, 5 reply states (queued, already queued, already processed, invalid, no URL found)
+  - Optional access control via `telegram_allowed_user_ids`
+  - `config.py`: `telegram_bot_token`, `telegram_allowed_user_ids`, `telegram_poll_interval_sec` settings
+  - `run.sh`: conditionally launches bot when token is configured
+  - `requirements.txt`: added `python-telegram-bot>=21.0`
+  - 16 new unit tests; 141 total passing
+
 ### v1.8 — Podbean Publishing + Config Security
 - [x] TASK-29 Publish episodes to Podbean from admin UI
   - New `podbean.py`: OAuth 2.0 auth, presigned MP3 upload, episode creation via Podbean API

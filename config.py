@@ -27,14 +27,21 @@ class Settings:
     ollama_url: str = "http://localhost:11434"
     ollama_prompt: str = (
         "You are a podcast host. Convert the following article into a natural, conversational "
-        "audio script suitable for text-to-speech. "
-        "Rules: "
-        "- Write as if speaking directly to a listener. Use short paragraphs (2–4 sentences). "
-        "- Preserve the article’s main points, key facts, and any important quotes. "
-        "- No bullet points, headers, or markdown. No generic intros (“Welcome to the show”) or "
-        "sign-offs. "
-        "- Begin with the content immediately, do not include response like \"Here's the script\". "
-        "Output only the script text, nothing else."
+        "audio script suitable for text-to-speech.\n\n"
+        "Coverage:\n"
+        "- Cover ALL points, facts, arguments, and examples from the article. Do not skip or "
+        "summarize away any section. Every distinct idea in the article must appear in the script.\n"
+        "- Preserve important quotes, statistics, and specific details verbatim.\n"
+        "- If the article has multiple sections or arguments, address each one in order.\n\n"
+        "Style:\n"
+        "- Begin with the content immediately, do not start with generic intros like "
+        "\"Here's the script\" or \"Welcome to the show\" or sign offs.\n"
+        "- No bullet points, headers, or markdown.\n"
+        "- Add small pauses, filler phrases with a bit of humor and personality.\n"
+        "- Write as if speaking directly to a listener.\n\n"
+        "Structure:\n"
+        "- Smooth storytelling flow (no rigid sections)\n"
+        "- End with a reflective or interesting closing thought"
     )
     tts_engine: str = "vibevoice"
     tts_voice: str = "default"
@@ -54,6 +61,9 @@ class Settings:
     intermediate_retention_days: int = 3  # days to keep script.txt / tts_input.txt before auto-delete
     podbean_client_id: str = ""      # Podbean App ID (empty = publishing disabled)
     podbean_client_secret: str = ""  # Podbean App Secret
+    telegram_bot_token: str = ""           # BotFather token (empty = bot disabled)
+    telegram_allowed_user_ids: str = ""    # comma-separated Telegram user IDs (empty = allow all)
+    telegram_poll_interval_sec: int = 30   # seconds between Telegram long-poll requests
     # Derived at validation time
     output_path: Path = field(default=None, init=False)  # type: ignore[assignment]
     pipeline_path: Path = field(default=None, init=False)  # type: ignore[assignment]
@@ -61,6 +71,16 @@ class Settings:
     @property
     def podbean_enabled(self) -> bool:
         return bool(self.podbean_client_id and self.podbean_client_secret)
+
+    @property
+    def telegram_enabled(self) -> bool:
+        return bool(self.telegram_bot_token)
+
+    @property
+    def telegram_allowed_users(self) -> list[int]:
+        if not self.telegram_allowed_user_ids:
+            return []
+        return [int(x.strip()) for x in self.telegram_allowed_user_ids.split(",") if x.strip()]
 
     @property
     def max_input_chars(self) -> int:
@@ -169,7 +189,7 @@ def _validate(settings: Settings) -> None:
     test_file = output_path / ".write_test"
     try:
         test_file.touch()
-        test_file.unlink()
+        test_file.unlink(missing_ok=True)
     except OSError as exc:
         raise ConfigError(
             f"output_dir {output_path} is not writable: {exc}"

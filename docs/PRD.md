@@ -1,7 +1,7 @@
 # Product Requirements Document: Links to Listens
 
-**Version:** 1.8
-**Date:** 2026-03-19
+**Version:** 1.9
+**Date:** 2026-03-22
 **Status:** Implemented
 
 ---
@@ -128,6 +128,14 @@ The pipeline is split into two independent processing stages — one for script 
 - **FR-43a:** Clicking "Publish" MUST open an editable form pre-filled with the episode's title, description, and thumbnail preview. The user MAY edit title and description, and optionally upload a new thumbnail image (JPG/PNG/GIF, max 2 MB) before confirming. Edited values are sent to Podbean only — local episode data is unchanged.
 - **FR-44:** The Publish button MUST be hidden entirely when Podbean credentials are not configured.
 - **FR-45:** `config.yaml` MUST be gitignored. `config.yaml.sample` is the committed template with safe defaults and no secrets.
+
+### 5.13 Telegram Bot
+- **FR-46:** The system MUST support an optional Telegram bot that accepts URLs via chat messages and queues them for processing using the same `enqueue_url()` mechanism as the web UI.
+- **FR-46a:** The bot MUST extract URLs from messages that contain surrounding text (e.g., "Check out https://example.com please"), using Telegram entity detection with a regex fallback. If no URL is found, the bot MUST reply with "No URL found".
+- **FR-47:** The bot MUST reply with one of five statuses: queued, already queued, already processed, invalid URL, or no URL found.
+- **FR-48:** The bot MUST support optional access control via `telegram_allowed_user_ids` (comma-separated). When empty, any user may submit URLs.
+- **FR-49:** The bot MUST run as a separate process, launched conditionally by `run.sh` when `telegram_bot_token` is configured.
+- **FR-50:** The bot MUST respond to `/start` with a welcome message.
 
 ### 5.10 Browser Cookie Job Tracking
 - **FR-33:** Both web UIs MUST store submitted job IDs in browser cookies (up to 20 per UI, 90-day expiry).

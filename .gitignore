@@ -14,6 +14,7 @@ venv/
 
 # Local agent / editor settings
 .claude/
+.cursor/
 
 # Generated app data
 output/

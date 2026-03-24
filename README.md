@@ -27,9 +27,11 @@ Both APIs are mounted as routers inside the main `app.py` FastAPI application an
 
 ## Services at a glance
 
-| Service | Port | UI | Purpose |
-|---------|------|----|---------|
+
+| Service                                 | Port | UI                      | Purpose                       |
+| --------------------------------------- | ---- | ----------------------- | ----------------------------- |
 | Web UI + admin + Script API + Audio API | 8080 | `http://localhost:8080` | All routes served on one port |
+
 
 All routes are served by a single FastAPI app (`app.py`) on port 8080. The script and audio routers are mounted at `/generate-script` and `/generate-audio` respectively.
 
@@ -73,6 +75,7 @@ brew install ffmpeg
 ## Usage
 
 **Start everything with one command:**
+
 ```bash
 ./run.sh
 ```
@@ -80,6 +83,7 @@ brew install ffmpeg
 `run.sh` checks that Ollama is reachable and VibeVoice is installed, starts the combined app (web UI + script API + audio API) and the watcher, and shuts them all down cleanly on Ctrl+C.
 
 **Or manually:**
+
 ```bash
 # Combined app: Web UI + admin + Script API + Audio API (all on port 8080)
 uvicorn app:app --host 0.0.0.0 --port 8080
@@ -89,6 +93,7 @@ python watcher.py
 ```
 
 **Standalone API modules (optional, for development):**
+
 ```bash
 # Script API standalone on its own port (uses script_api_port from config.yaml)
 python script_api.py
@@ -98,6 +103,7 @@ python audio_api.py
 ```
 
 **Add a URL for automatic processing:**
+
 ```bash
 echo "https://example.com/some-article" >> urls.txt
 ```
@@ -113,19 +119,32 @@ The watcher detects queued URLs, generates a script, synthesises audio, and the 
 All four UIs share a **consistent top bar** (brand + Episodes, Admin, Generate Script, Generate Audio) and the same dark theme. Layouts are **responsive**: on narrow screens the nav collapses into a hamburger menu. Templates extend a shared `base.html` with a common design system (CSS variables, cards, buttons).
 
 ### Episode Player — `http://localhost:8080/`
+
 Browse and play all generated podcast episodes. Each episode shows thumbnail, title, description, source link, and an embedded audio player. A “now playing” bar appears at the bottom when any episode is playing. The top of the page also includes a “Queue a New URL” form that appends validated links to `urls.txt` for watcher pickup.
 
 ### Admin Panel — `http://localhost:8080/admin`
+
 - **Hide/Show** episodes from the public player
 - **Delete** episodes permanently (removes the audio file)
 - **Regenerate** episodes from their original URL (runs the full pipeline again)
 - **Publish to Podbean** — opens an editable form (title, description, and optional thumbnail upload) before uploading the episode MP3 to Podbean. Edited values are sent to Podbean only; local episode data stays unchanged. Requires `podbean_client_id` and `podbean_client_secret` in `config.yaml`; button hidden when not configured.
 
 ### URL → Script UI — `http://localhost:8080/generate-script`
+
 Paste any article URL and get a ready-to-record podcast script. Jobs run in the background — the page polls for completion automatically. Job history is tracked in your browser cookies so you can close the page and come back later.
 
 ### Script → Audio UI — `http://localhost:8080/generate-audio`
+
 Paste a script or upload a `.txt` file to synthesise an MP3. Blank scripts are rejected before synthesis starts. Same async job model — submit, close the page, return when done to download the file. Job history with download links is stored in browser cookies.
+
+### Telegram Bot (optional)
+
+Send a URL to the bot on Telegram and it queues it for podcast processing — same as using the web UI or editing `urls.txt`. The bot extracts URLs from messages even when surrounded by other text (e.g., "Check out https://example.com/article please"). Setup:
+
+1. Message [@BotFather](https://t.me/BotFather) on Telegram and create a new bot to get a token.
+2. Set `telegram_bot_token` in `config.yaml`.
+3. Optionally restrict access by setting `telegram_allowed_user_ids` to a comma-separated list of Telegram user IDs (find yours by messaging [@userinfobot](https://t.me/userinfobot)).
+4. The bot starts automatically with `./run.sh` when configured, or run standalone: `python telegram_bot.py`.
 
 ---
 
@@ -135,11 +154,14 @@ All routes are on port 8080.
 
 ### Queue API
 
-| Method | Path | Description |
-|--------|------|-------------|
+
+| Method | Path        | Description                        |
+| ------ | ----------- | ---------------------------------- |
 | `POST` | `/api/urls` | Queue a URL for watcher processing |
 
+
 **Queue a URL from the home page flow:**
+
 ```bash
 curl -X POST http://localhost:8080/api/urls \
   -H 'Content-Type: application/json' \
@@ -149,14 +171,17 @@ curl -X POST http://localhost:8080/api/urls \
 
 ### Script API
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/generate-script` | Web UI |
-| `POST` | `/generate-script/submit` | Submit a URL; returns `{"job_id": "..."}` |
-| `GET` | `/generate-script/jobs/{id}` | Poll job status and result |
-| `GET` | `/health` | Health check |
+
+| Method | Path                         | Description                               |
+| ------ | ---------------------------- | ----------------------------------------- |
+| `GET`  | `/generate-script`           | Web UI                                    |
+| `POST` | `/generate-script/submit`    | Submit a URL; returns `{"job_id": "..."}` |
+| `GET`  | `/generate-script/jobs/{id}` | Poll job status and result                |
+| `GET`  | `/health`                    | Health check                              |
+
 
 **Submit a script job:**
+
 ```bash
 curl -X POST http://localhost:8080/generate-script/submit \
   -H 'Content-Type: application/json' \
@@ -165,6 +190,7 @@ curl -X POST http://localhost:8080/generate-script/submit \
 ```
 
 **Poll for result:**
+
 ```bash
 curl http://localhost:8080/generate-script/jobs/3f2a1b...
 # → {"status": "done", "result": {"title": "...", "script": "..."}, ...}
@@ -172,15 +198,18 @@ curl http://localhost:8080/generate-script/jobs/3f2a1b...
 
 ### Audio API
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/generate-audio` | Web UI |
-| `POST` | `/generate-audio/submit` | Submit a script; returns `{"job_id": "..."}` |
-| `GET` | `/generate-audio/jobs/{id}` | Poll job status |
-| `GET` | `/generate-audio/jobs/{id}/download` | Download the generated MP3 |
-| `GET` | `/health` | Health check |
+
+| Method | Path                                 | Description                                  |
+| ------ | ------------------------------------ | -------------------------------------------- |
+| `GET`  | `/generate-audio`                    | Web UI                                       |
+| `POST` | `/generate-audio/submit`             | Submit a script; returns `{"job_id": "..."}` |
+| `GET`  | `/generate-audio/jobs/{id}`          | Poll job status                              |
+| `GET`  | `/generate-audio/jobs/{id}/download` | Download the generated MP3                   |
+| `GET`  | `/health`                            | Health check                                 |
+
 
 **Submit an audio job:**
+
 ```bash
 curl -X POST http://localhost:8080/generate-audio/submit \
   -H 'Content-Type: application/json' \
@@ -189,6 +218,7 @@ curl -X POST http://localhost:8080/generate-audio/submit \
 ```
 
 **Download when done:**
+
 ```bash
 curl -OJ http://localhost:8080/generate-audio/jobs/9c4d2e.../download
 ```
@@ -199,28 +229,33 @@ curl -OJ http://localhost:8080/generate-audio/jobs/9c4d2e.../download
 
 Copy `config.yaml.sample` to `config.yaml` and edit (`config.yaml` is gitignored to keep secrets local):
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `ollama_model` | `gpt-oss:20b` | Ollama model to use |
-| `ollama_url` | `http://localhost:11434` | Ollama API endpoint |
-| `ollama_prompt` | *(see config.yaml)* | System prompt for script generation |
-| `tts_voice` | `default` | VibeVoice voice profile |
-| `tts_voice_sample` | `""` | Path to a reference WAV for voice cloning (24 kHz mono recommended) |
-| `tts_ddpm_steps` | `15` | Diffusion steps (1–50); higher = better fidelity, slower (try 20 for best) |
-| `tts_cfg_scale` | `1.3` | Classifier-free guidance (1.0–2.0); 1.4–1.5 can improve voice clarity |
-| `tts_mp3_bitrate` | `192` | MP3 bitrate in kbps: 128, 192, 256, or 320 (256/320 = higher fidelity) |
-| `tts_use_float32` | `false` | If true, use float32 on GPU/MPS for higher quality (~2× memory; may OOM) |
-| `tts_chunk_sentences` | `10` | Sentences per TTS inference call; must be greater than `0` |
-| `scrape_timeout_sec` | `15` | HTTP request timeout |
-| `output_dir` | `./output` | Directory for generated MP3 files |
-| `web_port` | `8080` | Web UI + admin port |
-| `script_api_port` | `8081` | Script API port when run standalone (optional; empty/null falls back to 8081) |
-| `audio_api_port` | `8082` | Audio API port when run standalone (optional; empty/null falls back to 8082) |
-| `poll_interval_sec` | `5` | How often the watcher checks `urls.txt` |
-| `max_input_tokens` | `4096` | Max tokens of article text sent to LLM |
-| `intermediate_retention_days` | `3` | Days to keep intermediate files (`script.txt`, `tts_input.txt`) before auto-deletion |
-| `podbean_client_id` | `""` | Podbean App ID (empty = Publish button hidden) |
-| `podbean_client_secret` | `""` | Podbean App Secret |
+
+| Key                           | Default                  | Description                                                                          |
+| ----------------------------- | ------------------------ | ------------------------------------------------------------------------------------ |
+| `ollama_model`                | `gpt-oss:20b`            | Ollama model to use                                                                  |
+| `ollama_url`                  | `http://localhost:11434` | Ollama API endpoint                                                                  |
+| `ollama_prompt`               | *(see config.yaml)*      | System prompt for script generation                                                  |
+| `tts_voice`                   | `default`                | VibeVoice voice profile                                                              |
+| `tts_voice_sample`            | `""`                     | Path to a reference WAV for voice cloning (24 kHz mono recommended)                  |
+| `tts_ddpm_steps`              | `15`                     | Diffusion steps (1–50); higher = better fidelity, slower (try 20 for best)           |
+| `tts_cfg_scale`               | `1.3`                    | Classifier-free guidance (1.0–2.0); 1.4–1.5 can improve voice clarity                |
+| `tts_mp3_bitrate`             | `192`                    | MP3 bitrate in kbps: 128, 192, 256, or 320 (256/320 = higher fidelity)               |
+| `tts_use_float32`             | `false`                  | If true, use float32 on GPU/MPS for higher quality (~2× memory; may OOM)             |
+| `tts_chunk_sentences`         | `10`                     | Sentences per TTS inference call; must be greater than `0`                           |
+| `scrape_timeout_sec`          | `15`                     | HTTP request timeout                                                                 |
+| `output_dir`                  | `./output`               | Directory for generated MP3 files                                                    |
+| `web_port`                    | `8080`                   | Web UI + admin port                                                                  |
+| `script_api_port`             | `8081`                   | Script API port when run standalone (optional; empty/null falls back to 8081)        |
+| `audio_api_port`              | `8082`                   | Audio API port when run standalone (optional; empty/null falls back to 8082)         |
+| `poll_interval_sec`           | `5`                      | How often the watcher checks `urls.txt`                                              |
+| `max_input_tokens`            | `4096`                   | Max tokens of article text sent to LLM                                               |
+| `intermediate_retention_days` | `3`                      | Days to keep intermediate files (`script.txt`, `tts_input.txt`) before auto-deletion |
+| `podbean_client_id`           | `""`                     | Podbean App ID (empty = Publish button hidden)                                       |
+| `podbean_client_secret`       | `""`                     | Podbean App Secret                                                                   |
+| `telegram_bot_token`          | `""`                     | Telegram BotFather token (empty = bot disabled)                                      |
+| `telegram_allowed_user_ids`   | `""`                     | Comma-separated Telegram user IDs allowed to use the bot (empty = allow all)         |
+| `telegram_poll_interval_sec`  | `30`                     | Seconds between Telegram long-poll requests                                          |
+
 
 Any setting can also be overridden at runtime with a `PODCAST_` environment variable:
 
@@ -268,6 +303,7 @@ links-to-listens/
 ├── app.py                # FastAPI app (port 8080): mounts script_router + audio_router, web UI, admin
 ├── models.py             # Episode dataclass
 ├── podbean.py            # Podbean API client (OAuth, upload, publish)
+├── telegram_bot.py       # Telegram bot (queue URLs via chat)
 ├── config.py             # Settings loader, env-var overrides, validation
 │
 ├── templates/
@@ -329,3 +365,4 @@ links-to-listens/
 - **Single process:** `run.sh` starts one uvicorn process (`app:app` on port 8080) plus the watcher. There is no longer a separate process for the script or audio APIs.
 - **Pipeline state & intermediates:** Each watcher run creates a directory `output/pipeline/{run-id}/` containing a `state.json` (stage, timestamps, paths, error — never auto-deleted), `input_text.txt` (scraped article text), `prompt.txt` (full Ollama prompt), `script.txt` (raw Ollama output), and `tts_input.txt` (Speaker-labelled VibeVoice input). The intermediate files (`input_text.txt`, `prompt.txt`, `script.txt`, `tts_input.txt`) are automatically pruned after `intermediate_retention_days` (default 3) days; `state.json` and the final MP3 are never touched by the pruner. Pruning runs at watcher startup and then once per day. This state machine covers the watcher pipeline only; API jobs use the existing in-memory job queue.
 - **Documentation workflow:** When behavior changes in code, the repo docs (`README.md`, `docs/PRD.md`, `docs/plan.md`, `docs/TODO.md`) should be updated in the same change.
+

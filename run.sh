@@ -98,11 +98,32 @@ info "Starting watcher (polling urls.txt)..."
 "$PYTHON" watcher.py &
 PIDS+=($!)
 
+# Conditionally start Telegram bot
+TELEGRAM_TOKEN=$("$PYTHON" -c "
+import sys, pathlib
+sys.path.insert(0, '.')
+try:
+    from config import load_settings
+    s = load_settings()
+    print(s.telegram_bot_token)
+except Exception:
+    print('')
+" 2>/dev/null || echo "")
+
+if [ -n "$TELEGRAM_TOKEN" ]; then
+    info "Starting Telegram bot..."
+    "$PYTHON" telegram_bot.py &
+    PIDS+=($!)
+fi
+
 info "All services running. Press Ctrl+C to stop."
 info "  Episodes      → http://localhost:$PORT/"
 info "  Admin         → http://localhost:$PORT/admin"
 info "  Generate Script → http://localhost:$PORT/generate-script"
 info "  Generate Audio  → http://localhost:$PORT/generate-audio"
+if [ -n "$TELEGRAM_TOKEN" ]; then
+    info "  Telegram Bot  → enabled"
+fi
 info "Add URLs to urls.txt to queue them for processing."
 
 # Poll until one of the services dies.
