@@ -31,8 +31,9 @@ logger = logging.getLogger(__name__)
 
 MODEL_ID = "microsoft/VibeVoice-1.5b"
 
-# Hard upper bound on a single synthesis run (30 min).
-WORKER_TIMEOUT_SEC = 1800
+# Default hard upper bound on a single synthesis run (30 min).
+# Overridden by settings.tts_timeout_sec when available.
+_DEFAULT_WORKER_TIMEOUT_SEC = 1800
 
 # Serialises concurrent synthesize() calls in the parent process.
 # The subprocess path blocks during p.join(); this prevents two callers from
@@ -416,19 +417,20 @@ def _run_in_subprocess(script: str, wav_path: Path, settings: Settings) -> None:
     with _tts_lock:
         p.start()
         logger.info("TTS worker started (pid=%d)", p.pid)
-        p.join(timeout=WORKER_TIMEOUT_SEC)
+        timeout = getattr(settings, "tts_timeout_sec", _DEFAULT_WORKER_TIMEOUT_SEC)
+        p.join(timeout=timeout)
 
         if p.is_alive():
             logger.error(
                 "TTS worker pid=%d timed out after %ds — terminating",
-                p.pid, WORKER_TIMEOUT_SEC,
+                p.pid, timeout,
             )
             p.terminate()
             p.join(5)
             if p.is_alive():
                 p.kill()
                 p.join()
-            raise TTSError(f"TTS worker timed out after {WORKER_TIMEOUT_SEC}s")
+            raise TTSError(f"TTS worker timed out after {timeout}s")
 
         if p.exitcode != 0:
             try:

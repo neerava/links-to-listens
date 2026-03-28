@@ -154,6 +154,10 @@
             </span>
           </td>
           <td class="td-actions">
+            <button class="btn" data-id="{{ ep.id }}" data-title="{{ ep.title | e }}" data-desc="{{ ep.description | e }}" onclick="openEditForm(this)" title="Edit title/description" style="border-color:var(--blue);color:var(--blue);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span>Edit</span>
+            </button>
             <button class="btn btn-hide" onclick="toggleHide('{{ ep.id }}')" title="Toggle visibility">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               <span id="hide-label-{{ ep.id }}">{{ 'Show' if ep.hidden else 'Hide' }}</span>
@@ -226,13 +230,34 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="editOverlay">
+    <div class="modal" style="max-width:500px;">
+      <h3>Edit Episode</h3>
+      <div class="publish-form">
+        <input type="hidden" id="editEpId">
+        <label for="editTitle">Title</label>
+        <input type="text" id="editTitle" maxlength="250" placeholder="Episode title">
+        <label for="editDesc">Description</label>
+        <textarea id="editDesc" maxlength="4000" placeholder="Episode description" style="min-height:80px;"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeEditForm()">Cancel</button>
+        <button class="btn" onclick="submitEdit()" style="border-color:var(--blue);color:var(--blue);">Save</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 {% endblock %}
 
 {% block extra_js %}
   <script>
     function showToast(msg, ms) { ms = ms || 3000; var t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(function() { t.classList.remove('show'); }, ms); }
-    function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.remove('active');
+      document.getElementById('modalConfirmBtn').style.display = '';
+      document.querySelectorAll('.btn-regen-opt').forEach(function(b) { b.remove(); });
+    }
     function openModal(title, message, onConfirm) {
       document.getElementById('modalTitle').textContent = title;
       document.getElementById('modalMessage').textContent = message;
@@ -296,13 +321,61 @@
         showToast('Publishing started — refresh page to see status', 5000);
       } catch (e) { showToast('Error: ' + e.message); }
     }
-    function confirmRegen(id, url) {
-      openModal('Regenerate', 'Re-process from: ' + url + '? This runs the full pipeline again.', async function() {
-        try { await apiPost('/admin/api/episodes/' + id + '/regenerate'); document.getElementById('row-' + id).remove(); showToast('Regeneration started'); } catch (e) { showToast('Error: ' + e.message); }
-      });
+    function openEditForm(btn) {
+      document.getElementById('editEpId').value = btn.dataset.id;
+      document.getElementById('editTitle').value = btn.dataset.title || '';
+      document.getElementById('editDesc').value = btn.dataset.desc || '';
+      document.getElementById('editOverlay').classList.add('active');
+      document.getElementById('editTitle').focus();
     }
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closeModal(); closePublishForm(); } });
+    function closeEditForm() { document.getElementById('editOverlay').classList.remove('active'); }
+    async function submitEdit() {
+      var id = document.getElementById('editEpId').value;
+      var title = document.getElementById('editTitle').value.trim();
+      var desc = document.getElementById('editDesc').value.trim();
+      if (!title) { showToast('Title is required'); return; }
+      closeEditForm();
+      try {
+        var d = await apiPost('/admin/api/episodes/' + id + '/update', { title: title, description: desc });
+        // Update the row in place
+        var row = document.getElementById('row-' + id);
+        if (row) {
+          var titleEl = row.querySelector('.td-title');
+          var descEl = row.querySelector('.td-desc');
+          if (titleEl) titleEl.textContent = d.title;
+          if (descEl) descEl.textContent = d.description;
+        }
+        showToast('Episode updated');
+      } catch (e) { showToast('Error: ' + e.message); }
+    }
+    function confirmRegen(id, url) {
+      document.getElementById('modalTitle').textContent = 'Regenerate';
+      document.getElementById('modalMessage').textContent = 'Re-process from: ' + url;
+      document.getElementById('modalConfirmBtn').style.display = 'none';
+      var actions = document.querySelector('.modal-actions');
+      // Remove any previous regen buttons
+      actions.querySelectorAll('.btn-regen-opt').forEach(function(b) { b.remove(); });
+      var fullBtn = document.createElement('button');
+      fullBtn.className = 'btn btn-regen-opt';
+      fullBtn.textContent = 'Full Regen';
+      fullBtn.style.cssText = 'border-color:var(--green);color:var(--green);';
+      fullBtn.onclick = async function() { closeModal(); document.getElementById('modalConfirmBtn').style.display = '';
+        try { await apiPost('/admin/api/episodes/' + id + '/regenerate'); document.getElementById('row-' + id).remove(); showToast('Full regen started'); } catch (e) { showToast('Error: ' + e.message); }
+      };
+      var ttsBtn = document.createElement('button');
+      ttsBtn.className = 'btn btn-regen-opt';
+      ttsBtn.textContent = 'From TTS only';
+      ttsBtn.style.cssText = 'border-color:var(--yellow);color:var(--yellow);';
+      ttsBtn.onclick = async function() { closeModal(); document.getElementById('modalConfirmBtn').style.display = '';
+        try { await apiPost('/admin/api/episodes/' + id + '/regenerate', { from_stage: 'tts' }); document.getElementById('row-' + id).remove(); showToast('TTS regen started'); } catch (e) { showToast('Error: ' + e.message); }
+      };
+      actions.insertBefore(ttsBtn, actions.firstChild);
+      actions.insertBefore(fullBtn, actions.firstChild);
+      document.getElementById('modalOverlay').classList.add('active');
+    }
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closeModal(); closePublishForm(); closeEditForm(); } });
     document.getElementById('modalOverlay').addEventListener('click', function(e) { if (e.target === e.currentTarget) closeModal(); });
     document.getElementById('publishOverlay').addEventListener('click', function(e) { if (e.target === e.currentTarget) closePublishForm(); });
+    document.getElementById('editOverlay').addEventListener('click', function(e) { if (e.target === e.currentTarget) closeEditForm(); });
   </script>
 {% endblock %}

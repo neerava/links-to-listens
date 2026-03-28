@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Generate Script — Links to Listens{% endblock %}
-{% block nav_active %}script{% endblock %}
+{% block title %}Scrape URL — Links to Listens{% endblock %}
+{% block nav_active %}scrape{% endblock %}
 
 {% block extra_css %}
     .tool-wrap { max-width: 560px; margin: 0 auto; padding: 1.5rem 1rem 2rem; }
@@ -35,9 +35,10 @@
     .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .result-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem; }
-    .result-title { font-size: 1rem; font-weight: 600; color: var(--text); }
-    .result-desc { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.2rem; }
-    .result-textarea { width: 100%; min-height: 240px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1rem; font-size: 0.85rem; color: var(--text-secondary); resize: vertical; font-family: inherit; }
+    .result-meta { font-size: 0.8rem; color: var(--text-secondary); }
+    .result-meta span { color: var(--text); font-weight: 600; }
+    .result-thumb { width: 80px; height: 80px; border-radius: 10px; object-fit: cover; background: var(--surface-hover); }
+    .result-textarea { width: 100%; min-height: 280px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1rem; font-size: 0.85rem; color: var(--text-secondary); resize: vertical; font-family: inherit; }
     .result-textarea:focus { outline: none; border-color: var(--border); }
     .btn-secondary { padding: 0.4rem 0.75rem; font-size: 0.8rem; font-weight: 500; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
     .btn-secondary:hover { background: var(--surface-hover); color: var(--text); }
@@ -63,21 +64,15 @@
 {% block content %}
   <div class="tool-wrap">
     <header class="tool-header">
-      <h1><span class="icon-wrap">🎙️</span> Links to Listens Script</h1>
-      <p>Paste any article URL and get a ready-to-record podcast script powered by AI.</p>
+      <h1><span class="icon-wrap">🔍</span> Scrape URL</h1>
+      <p>Extract article text and thumbnail from any URL.</p>
     </header>
 
     <div class="tool-card">
       <label for="url-input">Article URL</label>
       <div class="tool-row">
         <input id="url-input" type="url" placeholder="https://example.com/article" class="tool-input" />
-        <button id="submit-btn" onclick="submitJob()" class="tool-btn"><span id="btn-icon">✨</span><span id="btn-text">Generate</span></button>
-      </div>
-      <div style="margin-top:0.75rem;">
-        <label for="model-select">Model</label>
-        <select id="model-select" class="tool-input" style="width:auto;min-width:200px;cursor:pointer;">
-          <option value="">Loading models…</option>
-        </select>
+        <button id="submit-btn" onclick="submitJob()" class="tool-btn"><span id="btn-icon">🔍</span><span id="btn-text">Scrape</span></button>
       </div>
       <p id="input-error" class="tool-error hidden"></p>
     </div>
@@ -95,26 +90,28 @@
       <div id="state-running" class="hidden">
         <div class="state-row">
           <span class="spinner"></span>
-          <span class="state-label">Generating script…</span>
+          <span class="state-label">Scraping page...</span>
           <span class="spacer"></span>
-          <span class="state-meta">This may take a minute</span>
+          <span class="state-meta">Fetching and extracting content</span>
         </div>
         <div class="progress-track"><div class="progress-fill" style="background: var(--accent); width: 40%;"></div></div>
       </div>
       <div id="state-done" class="hidden">
         <div class="result-head">
           <div>
-            <div class="state-row"><span class="state-dot success"></span><span class="state-label" style="font-weight:600;color:var(--accent-light);">Script ready</span></div>
-            <p id="result-title" class="result-title"></p>
-            <p id="result-desc" class="result-desc"></p>
+            <div class="state-row"><span class="state-dot success"></span><span class="state-label" style="font-weight:600;color:var(--accent-light);">Content extracted</span></div>
+            <p class="result-meta"><span id="result-chars"></span> characters extracted</p>
           </div>
-          <button type="button" onclick="copyScript()" class="btn-secondary"><span id="copy-icon">📋</span> <span id="copy-label">Copy</span></button>
+          <div style="display:flex;gap:0.5rem;align-items:flex-start;">
+            <img id="result-thumb" class="result-thumb" src="" alt="" style="display:none;">
+            <button type="button" onclick="copyText()" class="btn-secondary"><span id="copy-icon">📋</span> <span id="copy-label">Copy</span></button>
+          </div>
         </div>
-        <textarea id="result-script" readonly rows="12" class="result-textarea"></textarea>
+        <textarea id="result-text" readonly rows="14" class="result-textarea"></textarea>
       </div>
       <div id="state-failed" class="hidden">
-        <div class="state-row"><span class="state-dot err"></span><span class="state-label" style="color:#e17055;">Generation failed</span></div>
-        <p id="result-error" class="result-desc" style="background:var(--bg);border:1px solid rgba(225,112,85,0.2);border-radius:10px;padding:0.75rem 1rem;"></p>
+        <div class="state-row"><span class="state-dot err"></span><span class="state-label" style="color:#e17055;">Scraping failed</span></div>
+        <p id="result-error" class="result-meta" style="background:var(--bg);border:1px solid rgba(225,112,85,0.2);border-radius:10px;padding:0.75rem 1rem;"></p>
       </div>
     </div>
 
@@ -130,7 +127,7 @@
 {% block extra_js %}
   <script>
     const API_PREFIX = '{{ api_prefix }}';
-    const COOKIE_NAME = 'script_job_ids';
+    const COOKIE_NAME = 'scrape_job_ids';
     const POLL_MS = 3000;
     let _pollTimer = null;
     let _activeJobId = null;
@@ -164,10 +161,9 @@
 
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
-      document.getElementById('btn-text').textContent = 'Submitting…';
+      document.getElementById('btn-text').textContent = 'Submitting...';
       try {
-        const model = document.getElementById('model-select').value;
-        const res = await fetch(API_PREFIX + '/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url, model: model }) });
+        const res = await fetch(API_PREFIX + '/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) });
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
         addJobId(data.job_id);
@@ -180,7 +176,7 @@
         document.getElementById('input-error').classList.remove('hidden');
       }
       btn.disabled = false;
-      document.getElementById('btn-text').textContent = 'Generate';
+      document.getElementById('btn-text').textContent = 'Scrape';
     }
 
     function setActiveState(name) {
@@ -197,9 +193,10 @@
         case 'running': setActiveState('running'); break;
         case 'done':
           setActiveState('done');
-          document.getElementById('result-title').textContent = (job.result && job.result.title) || '';
-          document.getElementById('result-desc').textContent = (job.result && job.result.description) || '';
-          document.getElementById('result-script').value = (job.result && job.result.script) || '';
+          document.getElementById('result-chars').textContent = (job.result && job.result.char_count) || 0;
+          document.getElementById('result-text').value = (job.result && job.result.text) || '';
+          var thumb = document.getElementById('result-thumb');
+          if (job.result && job.result.thumbnail_url) { thumb.src = '/img?url=' + encodeURIComponent(job.result.thumbnail_url); thumb.style.display = ''; } else { thumb.style.display = 'none'; }
           refreshHistory();
           break;
         case 'failed':
@@ -222,8 +219,8 @@
       } catch (e) { _pollTimer = setTimeout(() => poll(jobId), POLL_MS); }
     }
 
-    async function copyScript() {
-      const text = document.getElementById('result-script').value;
+    async function copyText() {
+      const text = document.getElementById('result-text').value;
       try {
         await navigator.clipboard.writeText(text);
         document.getElementById('copy-icon').textContent = '✅';
@@ -256,7 +253,8 @@
     function buildHistoryItem(job, id) {
       const el = document.createElement('div');
       el.className = 'history-item fade-in';
-      const title = (job.result && job.result.title) || ('Job ' + id.slice(0, 8) + '…');
+      const title = (job.result && job.result.url) || ('Job ' + id.slice(0, 8) + '...');
+      const chars = (job.result && job.result.char_count) ? job.result.char_count + ' chars' : '';
       const when = timeAgo(job.finished_at || job.created_at);
       const isDone = job.status === 'done';
       const dotClass = statusDotClass(job.status);
@@ -265,49 +263,31 @@
         '<span class="history-item-dot state-dot ' + dotClass + '"></span>' +
         '<div class="history-item-body">' +
         '<p class="history-item-title">' + esc(title) + '</p>' +
-        '<p class="history-item-time">' + esc(when) + '</p>' +
+        '<p class="history-item-time">' + esc(when) + (chars ? ' — ' + esc(chars) : '') + '</p>' +
         '</div>' +
         '<div class="history-item-actions">' +
-        (isDone ? '<button type="button" class="btn-secondary" onclick="viewScript(\'' + esc(id) + '\')">View</button>' : '') +
-        (isDone ? '<button type="button" class="btn-secondary" onclick="copyHistoryScript(\'' + esc(id) + '\', this)">Copy</button>' : '') +
+        (isDone ? '<button type="button" class="btn-secondary" onclick="viewText(\'' + esc(id) + '\')">View</button>' : '') +
+        (isDone ? '<button type="button" class="btn-secondary" onclick="copyHistoryText(\'' + esc(id) + '\', this)">Copy</button>' : '') +
         (job.status === 'failed' ? '<span style="font-size:0.8rem;color:#e17055;">Failed</span>' : '') +
-        ((job.status === 'pending' || job.status === 'running') ? '<span style="font-size:0.8rem;color:var(--text-secondary);">In progress…</span>' : '') +
+        ((job.status === 'pending' || job.status === 'running') ? '<span style="font-size:0.8rem;color:var(--text-secondary);">In progress...</span>' : '') +
         '</div></div>' +
-        '<div id="expand-' + esc(id) + '" class="history-expand hidden"><textarea readonly rows="8">' + esc((job.result && job.result.script) || '') + '</textarea></div>';
+        '<div id="expand-' + esc(id) + '" class="history-expand hidden"><textarea readonly rows="8">' + esc((job.result && job.result.text) || '') + '</textarea></div>';
       return el;
     }
 
-    function viewScript(id) { var el = document.getElementById('expand-' + id); if (el) el.classList.toggle('hidden'); }
-    async function copyHistoryScript(id, btn) {
+    function viewText(id) { var el = document.getElementById('expand-' + id); if (el) el.classList.toggle('hidden'); }
+    async function copyHistoryText(id, btn) {
       try {
         const res = await fetch(API_PREFIX + '/jobs/' + id);
         const job = await res.json();
-        await navigator.clipboard.writeText((job.result && job.result.script) || '');
+        await navigator.clipboard.writeText((job.result && job.result.text) || '');
         btn.textContent = '✅';
         setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
       } catch (e) { btn.textContent = 'Error'; }
     }
     function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-    async function loadModels() {
-      var sel = document.getElementById('model-select');
-      try {
-        var res = await fetch(API_PREFIX + '/models');
-        var data = await res.json();
-        sel.innerHTML = '';
-        (data.models || []).forEach(function(m) {
-          var opt = document.createElement('option');
-          opt.value = m;
-          opt.textContent = m;
-          if (m === data.default) opt.selected = true;
-          sel.appendChild(opt);
-        });
-        if (!sel.options.length) { sel.innerHTML = '<option value="">No models available</option>'; }
-      } catch (e) { sel.innerHTML = '<option value="">Could not load models</option>'; }
-    }
-
     document.addEventListener('DOMContentLoaded', function() {
-      loadModels();
       document.getElementById('url-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitJob(); });
       var ids = getJobIds();
       if (ids.length > 0) {

@@ -23,6 +23,7 @@ from models import Episode
 from pipeline_state import PipelineStateStore, Stage
 from script_api import generate_script
 from scraper import ScraperError
+from summarizer import extract_metadata, summarize
 from tts import TTSError
 
 logger = logging.getLogger(__name__)
@@ -129,6 +130,11 @@ def process_url(
         pipeline_store.save_input_text(run, script_result.input_text)
         pipeline_store.save_prompt(run, script_result.ollama_prompt)
         pipeline_store.save_script(run, script_result.script)
+        # Save article metadata into the run for TTS-only retries
+        pipeline_store.transition(run, run.stage,
+            title=script_result.title,
+            description=script_result.description,
+            thumbnail_url=script_result.thumbnail_url)
 
     title = script_result.title
     description = script_result.description
@@ -167,6 +173,229 @@ def process_url(
     if run:
         pipeline_store.transition(run, Stage.DONE, audio_path=str(output_path))
     logger.info("✓ Episode ready: %r ← %s", title, url)
+    return episode
+
+
+def resume_pipeline(
+    run_id: str,
+    from_stage: Stage,
+    settings: Settings,
+    store: MetadataStore,
+    pipeline_store: PipelineStateStore,
+) -> Episode | None:
+    """Resume a failed pipeline run from the given stage.
+
+    If from_stage is SCRIPT: re-runs scrape+summarize+TTS (full pipeline, reuses run record).
+    If from_stage is TTS: reads existing script.txt + saved metadata, runs TTS only.
+
+    Returns the created Episode, or None if any step failed.
+    """
+    run = pipeline_store.load_run(run_id)
+    if not run:
+        logger.error("Resume: run %s not found", run_id[:8])
+        return None
+    if run.stage != Stage.FAILED:
+        logger.error("Resume: run %s is not in FAILED state (stage=%s)", run_id[:8], run.stage.value)
+        return None
+
+    url = run.url
+    logger.info("Resuming run %s for %s from stage %s", run_id[:8], url, from_stage.value)
+
+    # Clear error state
+    pipeline_store.transition(run, from_stage, error="", failed_at_stage="")
+
+    if from_stage == Stage.SCRIPT:
+        # Re-run full pipeline from scrape+summarize
+        try:
+            script_result = generate_script(url, settings)
+        except Exception as exc:
+            logger.error("Resume script failed for %s: %s", url, exc)
+            pipeline_store.transition(run, Stage.FAILED, error=str(exc))
+            return None
+
+        pipeline_store.save_input_text(run, script_result.input_text)
+        pipeline_store.save_prompt(run, script_result.ollama_prompt)
+        pipeline_store.save_script(run, script_result.script)
+        pipeline_store.transition(run, Stage.SCRIPT,
+            title=script_result.title,
+            description=script_result.description,
+            thumbnail_url=script_result.thumbnail_url)
+
+        title = script_result.title
+        description = script_result.description
+        thumbnail_url = script_result.thumbnail_url
+        script_text = script_result.script
+
+    elif from_stage == Stage.TTS:
+        # TTS-only: read existing script and metadata from the run
+        script_file = Path(run.script_path) if run.script_path else None
+        if not script_file or not script_file.exists():
+            err = "Cannot resume from TTS: script.txt has been pruned. Retry from SCRIPT instead."
+            logger.error(err)
+            pipeline_store.transition(run, Stage.FAILED, error=err)
+            return None
+
+        script_text = script_file.read_text(encoding="utf-8")
+        title = run.title
+        description = run.description
+        thumbnail_url = run.thumbnail_url
+
+        if not title:
+            title = url  # fallback
+    else:
+        logger.error("Resume: unsupported from_stage %s", from_stage.value)
+        return None
+
+    # TTS → MP3
+    filename = _build_audio_filename(title)
+    output_path = settings.output_path / filename
+    pipeline_store.transition(run, Stage.TTS)
+    tts_input_path = pipeline_store.tts_input_path(run)
+    try:
+        generate_audio(script_text, output_path, settings, tts_input_path=tts_input_path)
+    except TTSError as exc:
+        logger.error("Resume TTS failed for %s: %s", url, exc)
+        pipeline_store.transition(run, Stage.FAILED, error=str(exc))
+        return None
+
+    # Store metadata
+    episode = Episode(
+        id=str(uuid.uuid4()),
+        title=title,
+        description=description,
+        source_url=url,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        audio_path=filename,
+        thumbnail_url=thumbnail_url,
+    )
+    store.append(episode)
+    pipeline_store.transition(run, Stage.DONE, audio_path=str(output_path))
+    logger.info("Resume complete: %r <- %s", title, url)
+    return episode
+
+
+def restart_pipeline(
+    run_id: str,
+    from_stage: Stage,
+    settings: Settings,
+    store: MetadataStore,
+    pipeline_store: PipelineStateStore,
+    input_text: str = "",
+    script_text: str = "",
+    title: str = "",
+    description: str = "",
+    thumbnail_url: str = "",
+) -> Episode | None:
+    """Restart a pipeline run from any stage with optional custom inputs.
+
+    Unlike resume_pipeline(), works on ANY run status (not just FAILED).
+    Custom text overrides skip the corresponding pipeline step:
+      - input_text provided → skip scraping, use this text for summarization
+      - script_text provided → skip scraping+summarization, use this script for TTS
+    """
+    run = pipeline_store.load_run(run_id)
+    if not run:
+        logger.error("Restart: run %s not found", run_id[:8])
+        return None
+
+    if run.stage in (Stage.PENDING, Stage.SCRIPT, Stage.TTS):
+        logger.error("Restart: run %s is currently active (stage=%s)", run_id[:8], run.stage.value)
+        return None
+
+    url = run.url
+    logger.info("Restarting run %s for %s from stage %s", run_id[:8], url, from_stage.value)
+
+    # Clear error state
+    pipeline_store.transition(run, from_stage, error="", failed_at_stage="")
+
+    if from_stage == Stage.SCRIPT:
+        if input_text:
+            # Custom scraped text — skip scraping, run summarize directly
+            pipeline_store.save_input_text(run, input_text)
+            try:
+                meta = extract_metadata(input_text, settings)
+                prompt_text = f"{settings.ollama_prompt}\n\n---\n\n{input_text}"
+                pipeline_store.save_prompt(run, prompt_text)
+                script = summarize(input_text, settings)
+            except Exception as exc:
+                logger.error("Restart script (custom text) failed for %s: %s", url, exc)
+                pipeline_store.transition(run, Stage.FAILED, error=str(exc))
+                return None
+
+            pipeline_store.save_script(run, script)
+            final_title = title or meta.title
+            final_desc = description or meta.description
+            final_thumb = thumbnail_url or run.thumbnail_url
+            pipeline_store.transition(run, Stage.SCRIPT,
+                title=final_title, description=final_desc, thumbnail_url=final_thumb)
+            script_text_for_tts = script
+        else:
+            # No custom text — full scrape + summarize
+            try:
+                script_result = generate_script(url, settings)
+            except Exception as exc:
+                logger.error("Restart script failed for %s: %s", url, exc)
+                pipeline_store.transition(run, Stage.FAILED, error=str(exc))
+                return None
+
+            pipeline_store.save_input_text(run, script_result.input_text)
+            pipeline_store.save_prompt(run, script_result.ollama_prompt)
+            pipeline_store.save_script(run, script_result.script)
+            final_title = title or script_result.title
+            final_desc = description or script_result.description
+            final_thumb = thumbnail_url or script_result.thumbnail_url
+            pipeline_store.transition(run, Stage.SCRIPT,
+                title=final_title, description=final_desc, thumbnail_url=final_thumb)
+            script_text_for_tts = script_result.script
+
+    elif from_stage == Stage.TTS:
+        if script_text:
+            pipeline_store.save_script(run, script_text)
+            script_text_for_tts = script_text
+        else:
+            script_file = Path(run.script_path) if run.script_path else None
+            if not script_file or not script_file.exists():
+                err = "Cannot restart from TTS: script.txt has been pruned. Restart from SCRIPT instead."
+                logger.error(err)
+                pipeline_store.transition(run, Stage.FAILED, error=err)
+                return None
+            script_text_for_tts = script_file.read_text(encoding="utf-8")
+
+        final_title = title or run.title
+        final_desc = description or run.description
+        final_thumb = thumbnail_url or run.thumbnail_url
+
+        if not final_title:
+            final_title = url
+    else:
+        logger.error("Restart: unsupported from_stage %s", from_stage.value)
+        return None
+
+    # TTS → MP3
+    filename = _build_audio_filename(final_title)
+    output_path = settings.output_path / filename
+    pipeline_store.transition(run, Stage.TTS)
+    tts_input_path = pipeline_store.tts_input_path(run)
+    try:
+        generate_audio(script_text_for_tts, output_path, settings, tts_input_path=tts_input_path)
+    except TTSError as exc:
+        logger.error("Restart TTS failed for %s: %s", url, exc)
+        pipeline_store.transition(run, Stage.FAILED, error=str(exc))
+        return None
+
+    # Store metadata
+    episode = Episode(
+        id=str(uuid.uuid4()),
+        title=final_title,
+        description=final_desc,
+        source_url=url,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        audio_path=filename,
+        thumbnail_url=final_thumb,
+    )
+    store.append(episode)
+    pipeline_store.transition(run, Stage.DONE, audio_path=str(output_path))
+    logger.info("Restart complete: %r <- %s", final_title, url)
     return episode
 
 

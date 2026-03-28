@@ -16,6 +16,8 @@ from pydantic import BaseModel
 
 from audio_api import audio_router
 from config import load_settings
+from pipeline_api import pipeline_router
+from scrape_api import scrape_router
 from metadata import MetadataStore
 from pipeline_state import PipelineStateStore
 from script_api import script_router
@@ -39,6 +41,8 @@ app = FastAPI(title="Links to Listens", docs_url=None, redoc_url=None)
 # Mount the two generation APIs under their own URI prefixes
 app.include_router(script_router, prefix="/generate-script")
 app.include_router(audio_router, prefix="/generate-audio")
+app.include_router(scrape_router, prefix="/scrape")
+app.include_router(pipeline_router, prefix="/pipeline/api")
 
 
 class UrlSubmission(BaseModel):
@@ -59,6 +63,21 @@ async def script_ui(request: Request) -> HTMLResponse:
 @app.get("/generate-audio", response_class=HTMLResponse)
 async def audio_ui(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "audio_ui.html", {"api_prefix": "/generate-audio"})
+
+
+@app.get("/scrape", response_class=HTMLResponse)
+async def scrape_ui(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request, "scrape_ui.html", {"api_prefix": "/scrape"})
+
+
+@app.get("/pipeline", response_class=HTMLResponse)
+async def pipeline_ui(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request, "pipeline.html", {})
+
+
+@app.get("/pipeline/{run_id}", response_class=HTMLResponse)
+async def pipeline_detail(request: Request, run_id: str) -> HTMLResponse:
+    return templates.TemplateResponse(request, "pipeline_detail.html", {"run_id": run_id})
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +105,25 @@ async def admin_hide(episode_id: str) -> JSONResponse:
     return JSONResponse({"id": ep.id, "hidden": ep.hidden})
 
 
+class EpisodeUpdateRequest(BaseModel):
+    title: str = ""
+    description: str = ""
+
+
+@app.post("/admin/api/episodes/{episode_id}/update")
+async def admin_update(episode_id: str, body: EpisodeUpdateRequest) -> JSONResponse:
+    """Update an episode's title and/or description."""
+    ep = store.get_by_id(episode_id)
+    if not ep:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    if body.title.strip():
+        ep.title = body.title.strip()
+    if body.description.strip():
+        ep.description = body.description.strip()
+    store.update(ep)
+    return JSONResponse({"id": ep.id, "title": ep.title, "description": ep.description})
+
+
 @app.post("/admin/api/episodes/{episode_id}/delete")
 async def admin_delete(episode_id: str) -> JSONResponse:
     """Permanently delete an episode and its audio file."""
@@ -100,9 +138,13 @@ async def admin_delete(episode_id: str) -> JSONResponse:
     return JSONResponse({"id": removed.id, "deleted": True})
 
 
+class RegenRequest(BaseModel):
+    from_stage: str = ""  # "" = full regen, "tts" = from TTS only
+
+
 @app.post("/admin/api/episodes/{episode_id}/regenerate")
-async def admin_regenerate(episode_id: str) -> JSONResponse:
-    """Re-process an episode's URL through the full pipeline.
+async def admin_regenerate(episode_id: str, body: RegenRequest | None = None) -> JSONResponse:
+    """Re-process an episode's URL through the full pipeline or from a specific stage.
 
     The old episode is kept in the metadata store until the new one is
     successfully created.  This is the cross-process guard: while the old
@@ -115,11 +157,33 @@ async def admin_regenerate(episode_id: str) -> JSONResponse:
 
     source_url = old.source_url
     old_audio_path = settings.output_path / old.audio_path
+    from_stage = (body.from_stage if body else "") or ""
 
     from watcher import process_url
 
     def _regen() -> None:
-        new_episode = process_url(source_url, settings, store, pipeline_store)
+        if from_stage == "tts":
+            # TTS-only regen: find the latest pipeline run for this URL, resume from TTS
+            from pipeline_state import Stage
+            from watcher import resume_pipeline
+            runs = pipeline_store.load_all_runs()
+            # Find the most recent completed or failed run for this URL that has a script
+            target_run = None
+            for r in runs:
+                if r.url == source_url and r.script_path and Path(r.script_path).exists():
+                    target_run = r
+                    break
+            if target_run:
+                # Temporarily mark as FAILED so resume_pipeline accepts it
+                if target_run.stage != Stage.FAILED:
+                    pipeline_store.transition(target_run, Stage.FAILED, failed_at_stage=Stage.TTS.value)
+                new_episode = resume_pipeline(target_run.id, Stage.TTS, settings, store, pipeline_store)
+            else:
+                logger.warning("No pipeline run with script found for %s — falling back to full regen", source_url)
+                new_episode = process_url(source_url, settings, store, pipeline_store)
+        else:
+            new_episode = process_url(source_url, settings, store, pipeline_store)
+
         if new_episode:
             # New episode is in the store — now safe to remove the old one.
             store.delete(episode_id)

@@ -124,18 +124,27 @@ Browse and play all generated podcast episodes. Each episode shows thumbnail, ti
 
 ### Admin Panel — `http://localhost:8080/admin`
 
+- **Edit** episode title and description inline
 - **Hide/Show** episodes from the public player
 - **Delete** episodes permanently (removes the audio file)
-- **Regenerate** episodes from their original URL (runs the full pipeline again)
+- **Regenerate** episodes from their original URL — choose "Full Regen" (from scratch) or "From TTS only" (reuses existing script)
 - **Publish to Podbean** — opens an editable form (title, description, and optional thumbnail upload) before uploading the episode MP3 to Podbean. Edited values are sent to Podbean only; local episode data stays unchanged. Requires `podbean_client_id` and `podbean_client_secret` in `config.yaml`; button hidden when not configured.
 
 ### URL → Script UI — `http://localhost:8080/generate-script`
 
-Paste any article URL and get a ready-to-record podcast script. Jobs run in the background — the page polls for completion automatically. Job history is tracked in your browser cookies so you can close the page and come back later.
+Paste any article URL and get a ready-to-record podcast script. A model dropdown lists all available Ollama models and defaults to the configured one — switch models per-request without changing config. Jobs run in the background — the page polls for completion automatically. Job history is tracked in your browser cookies so you can close the page and come back later.
 
 ### Script → Audio UI — `http://localhost:8080/generate-audio`
 
 Paste a script or upload a `.txt` file to synthesise an MP3. Blank scripts are rejected before synthesis starts. Same async job model — submit, close the page, return when done to download the file. Job history with download links is stored in browser cookies.
+
+### Scrape URL — `http://localhost:8080/scrape`
+
+Extract article text and thumbnail from any URL. Useful for testing what the scraper sees before generating a script. Same async job model — submit, poll, view results. Shows extracted character count and thumbnail preview. Job history tracked in browser cookies.
+
+### Pipeline — `http://localhost:8080/pipeline`
+
+View all pipeline runs with their current stage (pending, script, tts, done, failed), timestamps, and error messages. Sortable columns (click headers). Failed runs show a "Retry" button. All runs have a "Detail" link that opens a full work-item view showing scraped text, metadata, Ollama prompt, script, TTS input, and audio player. From the detail page, any run (including completed ones) can be restarted from any stage with customizable inputs — edit the scraped text or tweak the script before re-running. All runs can be permanently deleted. The page auto-refreshes when runs are in progress.
 
 ### Telegram Bot (optional)
 
@@ -169,13 +178,35 @@ curl -X POST http://localhost:8080/api/urls \
 # → {"status": "queued", "message": "..."}
 ```
 
+### Pipeline API
+
+
+| Method | Path                              | Description                                          |
+| ------ | --------------------------------- | ---------------------------------------------------- |
+| `GET`  | `/pipeline/api/runs`              | List all pipeline runs (most recent first)           |
+| `GET`  | `/pipeline/api/runs/{id}`         | Get single run with intermediate file contents       |
+| `POST` | `/pipeline/api/runs/{id}/retry`   | Retry a failed run from its failed stage             |
+| `POST` | `/pipeline/api/runs/{id}/restart` | Restart any run from any stage with custom inputs    |
+| `POST` | `/pipeline/api/runs/{id}/delete`  | Delete a run and all its intermediate files          |
+
+
+### Scrape API
+
+
+| Method | Path               | Description                                |
+| ------ | ------------------ | ------------------------------------------ |
+| `POST` | `/scrape/submit`   | Submit a URL for scraping; returns `{"job_id": "..."}` |
+| `GET`  | `/scrape/jobs/{id}` | Poll job status and result                |
+
+
 ### Script API
 
 
 | Method | Path                         | Description                               |
 | ------ | ---------------------------- | ----------------------------------------- |
 | `GET`  | `/generate-script`           | Web UI                                    |
-| `POST` | `/generate-script/submit`    | Submit a URL; returns `{"job_id": "..."}` |
+| `POST` | `/generate-script/submit`    | Submit a URL (optional `model` field); returns `{"job_id": "..."}` |
+| `GET`  | `/generate-script/models`    | List available Ollama models and default   |
 | `GET`  | `/generate-script/jobs/{id}` | Poll job status and result                |
 | `GET`  | `/health`                    | Health check                              |
 
@@ -235,12 +266,14 @@ Copy `config.yaml.sample` to `config.yaml` and edit (`config.yaml` is gitignored
 | `ollama_model`                | `gpt-oss:20b`            | Ollama model to use                                                                  |
 | `ollama_url`                  | `http://localhost:11434` | Ollama API endpoint                                                                  |
 | `ollama_prompt`               | *(see config.yaml)*      | System prompt for script generation                                                  |
+| `ollama_metadata_prompt`      | *(see config.yaml)*      | Prompt for extracting title/description (must produce JSON)                          |
 | `tts_voice`                   | `default`                | VibeVoice voice profile                                                              |
 | `tts_voice_sample`            | `""`                     | Path to a reference WAV for voice cloning (24 kHz mono recommended)                  |
 | `tts_ddpm_steps`              | `15`                     | Diffusion steps (1–50); higher = better fidelity, slower (try 20 for best)           |
 | `tts_cfg_scale`               | `1.3`                    | Classifier-free guidance (1.0–2.0); 1.4–1.5 can improve voice clarity                |
 | `tts_mp3_bitrate`             | `192`                    | MP3 bitrate in kbps: 128, 192, 256, or 320 (256/320 = higher fidelity)               |
 | `tts_use_float32`             | `false`                  | If true, use float32 on GPU/MPS for higher quality (~2× memory; may OOM)             |
+| `tts_timeout_sec`             | `1800`                   | Max seconds per TTS synthesis call (default 30 minutes)                              |
 | `tts_chunk_sentences`         | `10`                     | Sentences per TTS inference call; must be greater than `0`                           |
 | `scrape_timeout_sec`          | `15`                     | HTTP request timeout                                                                 |
 | `output_dir`                  | `./output`               | Directory for generated MP3 files                                                    |
@@ -302,6 +335,8 @@ links-to-listens/
 ├── metadata.py           # Thread-safe atomic JSON episode store
 ├── app.py                # FastAPI app (port 8080): mounts script_router + audio_router, web UI, admin
 ├── models.py             # Episode dataclass
+├── scrape_api.py         # Scrape API router (URL → extracted text + thumbnail)
+├── pipeline_api.py       # Pipeline API router (list, retry, delete runs)
 ├── podbean.py            # Podbean API client (OAuth, upload, publish)
 ├── telegram_bot.py       # Telegram bot (queue URLs via chat)
 ├── config.py             # Settings loader, env-var overrides, validation
@@ -313,7 +348,10 @@ links-to-listens/
 │   ├── index.html        # Public podcast player (extends base)
 │   ├── admin.html        # Admin panel — hide, delete, regenerate (extends base)
 │   ├── script_ui.html    # URL → script web UI (extends base)
-│   └── audio_ui.html     # Script → audio web UI (extends base)
+│   ├── audio_ui.html     # Script → audio web UI (extends base)
+│   ├── scrape_ui.html    # URL scrape web UI (extends base)
+│   ├── pipeline.html     # Pipeline runs dashboard (extends base)
+│   └── pipeline_detail.html  # Pipeline run detail with restart (extends base)
 │
 ├── docs/
 │   ├── PRD.md            # Product requirements document
@@ -347,6 +385,7 @@ links-to-listens/
 ## Notes
 
 - **No reprocessing:** URLs already in `output/metadata.json` are skipped on restart.
+- **Browser-like scraping:** The scraper sends realistic Chrome browser headers to avoid 403 rejections. On 403, it automatically retries with a headless Chromium browser via Playwright (if installed). This handles JS-protected sites. Sites with CAPTCHA challenges (e.g. Forbes/DataDome) will still fail. Install Playwright: `pip install playwright && playwright install chromium`.
 - **Fault isolation:** A failure on one URL (bad page, Ollama error, TTS error) is logged and skipped — the watcher continues with the next URL.
 - **Home-page URL queueing:** `POST /api/urls` validates and appends new links to `urls.txt`. Duplicate queued URLs are ignored, and already-processed URLs are reported without being re-added.
 - **Single worker per API:** `job_queue.py` guarantees at most one `generate_script` and one `generate_audio` run at a time. Additional requests wait in a FIFO queue. This prevents resource exhaustion from concurrent LLM or TTS calls.

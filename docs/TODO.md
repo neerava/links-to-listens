@@ -106,6 +106,49 @@ All v1.7 functional requirements implemented and verified.
   - `app.py` creates its own `PipelineStateStore` at module level (pointing to `output/pipeline/`) so admin-triggered regens appear in `output/pipeline/` just like watcher runs (`_pipeline_store` in `watcher.py` was always `None` in the web-app process)
   - TTS subprocess audit confirmed: all three callers of `generate_audio` (`_run_once`, `admin_regenerate`, `_audio_worker`) route through `synthesize()` and the VibeVoice subprocess; Script API does not call TTS
 
+### v1.10a — Configurable metadata prompt + episode editing
+- [x] `ollama_metadata_prompt` configurable in `config.py` and `config.yaml.sample`
+  - `summarizer.py` uses config setting instead of hardcoded `_METADATA_PROMPT`
+- [x] Edit episode title/description from admin UI
+  - `POST /admin/api/episodes/{id}/update` endpoint
+  - "Edit" button per episode in admin panel with modal form
+  - Updates row inline without page refresh
+
+### v1.10 — Restartable Pipeline + Pipeline UI
+- [x] Pipeline UI page at `/pipeline` with sortable columns (click headers to sort asc/desc)
+- [x] Pipeline detail page at `/pipeline/{run_id}` showing all work items (scraped text, metadata, prompt, script, TTS input, audio player)
+- [x] Restart from any stage with custom inputs — edit scraped text or script before re-running; works on completed jobs too
+- [x] `POST /pipeline/api/runs/{id}/restart` — restart any run from any stage with optional text overrides
+- [x] `GET /pipeline/api/runs/{id}` — single run with file contents
+- [x] Retry failed runs via `POST /pipeline/api/runs/{id}/retry`
+- [x] Delete pipeline runs via `POST /pipeline/api/runs/{id}/delete`
+- [x] `pipeline_state.py`: added `failed_at_stage`, `title`, `description`, `thumbnail_url` fields; `load_run()`, `load_all_runs()`, `delete_run()` methods
+- [x] `watcher.py`: added `resume_pipeline()` and `restart_pipeline()` (accepts any status + custom inputs)
+- [x] Admin regen enhanced with "Full Regen" / "From TTS only" options
+- [x] New `pipeline_api.py`, `templates/pipeline.html`, `templates/pipeline_detail.html`, Pipeline nav link
+- [x] 26 new tests; 167 total passing
+
+### v1.9d — Scrape URL UI
+- [x] New Scrape URL page at `/scrape` for extracting article text and thumbnail from any URL
+  - New `scrape_api.py`: router with `/submit` and `/jobs/{id}` endpoints, single-worker job queue
+  - New `templates/scrape_ui.html`: same async job pattern as script/audio UIs, shows extracted text, character count, thumbnail preview, cookie-based job history
+  - Nav bar updated with "Scrape" link
+  - Mounted in `app.py` at `/scrape`
+
+### v1.9c — Per-request model selection in Script UI
+- [x] Add model dropdown to Generate Script page, populated from Ollama `GET /api/tags`
+- [x] `GET /generate-script/models` endpoint returns available models and default
+- [x] `POST /generate-script/submit` accepts optional `model` field for per-request override
+- [x] Selected model applies to that job only — global config unchanged
+
+### v1.9b — Scraper 403 Fix + Playwright Fallback
+- [x] Fix 403 errors when scraping sites that block bot User-Agents
+  - Replaced bot User-Agent with realistic Chrome browser headers in `scraper.py`
+  - Added Playwright headless browser as optional fallback on 403 (lazy import, no hard dependency)
+  - Flow: httpx with browser headers → on 403, retry with Playwright if installed → CAPTCHA sites still fail with clear error
+  - Without Playwright: 403 error message suggests installation command
+  - Known limitation: sites with CAPTCHA challenges (e.g. Forbes/DataDome) cannot be scraped
+
 ### v1.9a — Bug Fix
 - [x] Fix `FileNotFoundError` in `config.py:_validate()` on `.write_test` file
   - **Root cause:** Multiple processes (app, watcher, telegram bot) call `_validate()` at startup, each creating and deleting `output/.write_test`. A race condition occurs when one process deletes the file between another's `touch()` and `unlink()` calls.

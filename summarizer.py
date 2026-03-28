@@ -24,7 +24,7 @@ class ArticleMetadata:
     description: str
 
 
-_METADATA_PROMPT = (
+_DEFAULT_METADATA_PROMPT = (
     "Extract a title and a 1-2 sentence description from the following article text. "
     "The title must be a complete phrase (not cut off mid-sentence), max 80 characters. "
     "The description must be 1-2 complete sentences, max 300 characters. "
@@ -79,7 +79,8 @@ def extract_metadata(text: str, settings: Settings | None = None) -> ArticleMeta
     if settings is None:
         settings = load_settings()
 
-    prompt = _METADATA_PROMPT + text[:settings.max_input_chars]
+    metadata_prompt = getattr(settings, "ollama_metadata_prompt", "") or _DEFAULT_METADATA_PROMPT
+    prompt = metadata_prompt + text[:settings.max_input_chars]
 
     logger.info("Extracting title/description via Ollama")
     t0 = time.monotonic()

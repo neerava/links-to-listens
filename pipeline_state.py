@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import threading
 import uuid
 from dataclasses import asdict, dataclass
@@ -56,6 +57,10 @@ class PipelineRun:
     tts_input_path: str = "" # output/pipeline/{run-id}/tts_input.txt (empty if pruned)
     audio_path: str = ""     # absolute path to the final MP3
     error: str = ""
+    failed_at_stage: str = ""  # stage value when failure occurred
+    title: str = ""            # article title (saved after script stage)
+    description: str = ""      # article description
+    thumbnail_url: str = ""    # scraped thumbnail URL
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -64,9 +69,24 @@ class PipelineRun:
 
     @classmethod
     def from_dict(cls, d: dict) -> "PipelineRun":
-        d = dict(d)
-        d["stage"] = Stage(d["stage"])
-        return cls(**d)
+        return cls(
+            id=d["id"],
+            url=d["url"],
+            stage=Stage(d["stage"]),
+            created_at=d["created_at"],
+            updated_at=d["updated_at"],
+            run_dir=d.get("run_dir", ""),
+            input_text_path=d.get("input_text_path", ""),
+            prompt_path=d.get("prompt_path", ""),
+            script_path=d.get("script_path", ""),
+            tts_input_path=d.get("tts_input_path", ""),
+            audio_path=d.get("audio_path", ""),
+            error=d.get("error", ""),
+            failed_at_stage=d.get("failed_at_stage", ""),
+            title=d.get("title", ""),
+            description=d.get("description", ""),
+            thumbnail_url=d.get("thumbnail_url", ""),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +144,8 @@ class PipelineStateStore:
 
     def transition(self, run: PipelineRun, stage: Stage, **kwargs) -> PipelineRun:
         """Advance *run* to *stage*, optionally updating other fields."""
+        if stage == Stage.FAILED and run.stage != Stage.FAILED:
+            run.failed_at_stage = run.stage.value
         run.stage = stage
         run.updated_at = datetime.now(timezone.utc).isoformat()
         for key, value in kwargs.items():
@@ -180,6 +202,51 @@ class PipelineStateStore:
         self.transition(run, run.stage, tts_input_path=str(p))
         logger.debug("TTS input saved → %s (%d chars)", p, len(text))
         return p
+
+    # ------------------------------------------------------------------ #
+    # Query
+    # ------------------------------------------------------------------ #
+
+    def load_run(self, run_id: str) -> PipelineRun | None:
+        """Load a single run by ID. Returns None if not found."""
+        with self._lock:
+            state_file = self._state_path(run_id)
+            if not state_file.exists():
+                return None
+            try:
+                data = json.loads(state_file.read_text(encoding="utf-8"))
+                return PipelineRun.from_dict(data)
+            except Exception as exc:
+                logger.warning("Failed to load run %s: %s", run_id[:8], exc)
+                return None
+
+    def load_all_runs(self) -> list[PipelineRun]:
+        """Load all pipeline runs, sorted by created_at descending (most recent first)."""
+        runs: list[PipelineRun] = []
+        with self._lock:
+            for run_dir in self._dir.iterdir():
+                if not run_dir.is_dir():
+                    continue
+                state_file = run_dir / "state.json"
+                if not state_file.exists():
+                    continue
+                try:
+                    data = json.loads(state_file.read_text(encoding="utf-8"))
+                    runs.append(PipelineRun.from_dict(data))
+                except Exception as exc:
+                    logger.warning("Skipping run %s: %s", run_dir.name[:8], exc)
+        runs.sort(key=lambda r: r.created_at, reverse=True)
+        return runs
+
+    def delete_run(self, run_id: str) -> bool:
+        """Delete a run's directory and all its files. Returns True if found."""
+        run_dir = self._run_dir(run_id)
+        with self._lock:
+            if not run_dir.exists():
+                return False
+            shutil.rmtree(run_dir)
+        logger.info("Deleted pipeline run %s", run_id[:8])
+        return True
 
     # ------------------------------------------------------------------ #
     # Pruning

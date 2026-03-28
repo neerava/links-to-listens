@@ -72,8 +72,14 @@ def generate_script(url: str, settings: Settings | None = None) -> ScriptResult:
 _settings = load_settings()
 
 
-def _script_worker(url: str) -> dict:
-    result = generate_script(url, _settings)
+def _script_worker(url: str, model: str = "") -> dict:
+    if model:
+        import copy
+        s = copy.copy(_settings)
+        s.ollama_model = model
+    else:
+        s = _settings
+    result = generate_script(url, s)
     return {
         "title": result.title,
         "description": result.description,
@@ -91,6 +97,7 @@ _queue = JobQueue(_script_worker)
 
 class ScriptRequest(BaseModel):
     url: str
+    model: str = ""  # optional Ollama model override
 
 
 script_router = APIRouter()
@@ -99,8 +106,20 @@ script_router = APIRouter()
 @script_router.post("/submit")
 async def submit_script(body: ScriptRequest) -> JSONResponse:
     """Enqueue a script generation job.  Returns ``{"job_id": "..."}`` immediately."""
-    job_id = _queue.submit(url=body.url)
+    job_id = _queue.submit(url=body.url, model=body.model)
     return JSONResponse({"job_id": job_id})
+
+
+@script_router.get("/models")
+async def list_models() -> JSONResponse:
+    """Return available Ollama models and the current default."""
+    import httpx
+    try:
+        resp = httpx.get(f"{_settings.ollama_url}/api/tags", timeout=5)
+        models = [m["name"] for m in resp.json().get("models", [])] if resp.status_code == 200 else []
+    except Exception:
+        models = []
+    return JSONResponse({"models": models, "default": _settings.ollama_model})
 
 
 @script_router.get("/jobs/{job_id}")

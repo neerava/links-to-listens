@@ -60,12 +60,16 @@ The pipeline is split into two independent processing stages — one for script 
 - **FR-04:** The system MUST scrape the main content of a given URL, stripping navigation, ads, and boilerplate.
 - **FR-04a:** The scraper MUST extract the page's thumbnail image (og:image or twitter:image) when available.
 - **FR-05:** The scraper MUST handle common content types: articles, blog posts, and documentation pages.
+- **FR-05a:** The scraper MUST send realistic browser headers to avoid HTTP 403 rejections from sites that block bot traffic.
+- **FR-05b:** On HTTP 403, the scraper MUST retry with a headless Chromium browser via Playwright if installed. Playwright is an optional dependency. Sites with CAPTCHA challenges (e.g. DataDome) are expected to fail.
 - **FR-06:** The scraper MUST time out after a configurable period (default: 15 seconds).
 
 ### 5.3 LLM Summarizer (via Ollama)
 - **FR-07:** The system MUST send scraped content to a local Ollama model to generate a podcast-style, conversational script.
 - **FR-08:** The script MUST sound natural for audio — no bullet points, headers, or markdown.
 - **FR-09:** The model and prompt MUST be configurable.
+- **FR-09a:** The metadata extraction prompt (`ollama_metadata_prompt`) MUST be configurable. It MUST instruct the LLM to respond with JSON containing `title` and `description` fields.
+- **FR-09b:** The admin panel MUST allow editing an episode's title and description after creation via `POST /admin/api/episodes/{id}/update`.
 
 ### 5.4 TTS Engine
 - **FR-10:** The system MUST convert the generated script to an MP3 audio file using **VibeVoice**.
@@ -95,6 +99,7 @@ The pipeline is split into two independent processing stages — one for script 
 - **FR-20:** The endpoint MUST enqueue the job and process it in the background with a single worker (no concurrent LLM calls).
 - **FR-21:** A `GET /generate-script/jobs/{id}` endpoint MUST return job status (`pending`, `running`, `done`, `failed`), queue position when pending, and the full result (title, description, thumbnail_url, script) when done.
 - **FR-22:** The API MUST serve a web UI at `GET /generate-script` for submitting URLs and viewing results.
+- **FR-22a:** The Script UI MUST display a model dropdown populated from available Ollama models (`GET /generate-script/models`). The dropdown MUST default to the configured `ollama_model`. The selected model MUST be sent with the submit request and used for that job only — the global config is unchanged.
 - **FR-23:** The `generate_script(url, settings)` function MUST be importable directly for in-process use by the watcher.
 
 ### 5.8 Audio Generation API (mounted at `/generate-audio`)
@@ -136,6 +141,23 @@ The pipeline is split into two independent processing stages — one for script 
 - **FR-48:** The bot MUST support optional access control via `telegram_allowed_user_ids` (comma-separated). When empty, any user may submit URLs.
 - **FR-49:** The bot MUST run as a separate process, launched conditionally by `run.sh` when `telegram_bot_token` is configured.
 - **FR-50:** The bot MUST respond to `/start` with a welcome message.
+
+### 5.15 Pipeline UI and Restartable Pipeline
+- **FR-54:** The system MUST provide a Pipeline page at `GET /pipeline` showing all pipeline runs with URL, stage, timestamps, and error messages. Runs MUST be sorted most recent first.
+- **FR-55:** For FAILED runs, the Pipeline page MUST show a "Retry" button that resumes from the stage where the run failed (`failed_at_stage`). If the failed stage is TTS and `script.txt` exists, only TTS MUST re-run.
+- **FR-56:** If `script.txt` has been pruned, TTS-only retry MUST fail with a clear error and suggest retrying from SCRIPT instead.
+- **FR-57:** All pipeline runs MUST be deletable from the Pipeline page (removes run directory and all intermediate files).
+- **FR-58:** The admin "Regenerate" action MUST offer "Full Regen" (from scratch) and "From TTS only" (reuses existing script from the most recent pipeline run for that URL).
+- **FR-59:** `PipelineRun` MUST record `failed_at_stage`, `title`, `description`, and `thumbnail_url` for stage-aware retry and TTS-only regeneration.
+- **FR-60:** The Pipeline list page MUST support sortable columns (URL, Stage, Created, Updated) via client-side click-to-sort with ascending/descending toggle.
+- **FR-61:** Each pipeline run MUST have a detail page (`/pipeline/{run_id}`) displaying all work items: scraped text, metadata, Ollama prompt, script, TTS input, and audio player.
+- **FR-62:** From the detail page, any run (including completed) MUST be restartable from any stage (SCRIPT or TTS) with editable custom inputs. Custom scraped text skips re-scraping; custom script text skips re-summarization. Active runs MUST reject restart requests.
+- **FR-63:** The restart endpoint (`POST /pipeline/api/runs/{id}/restart`) MUST accept optional `input_text`, `script_text`, `title`, `description`, and `thumbnail_url` overrides.
+
+### 5.14 Scrape UI
+- **FR-51:** The system MUST provide a web UI at `GET /scrape` for submitting URLs and viewing extracted article text and thumbnails.
+- **FR-52:** The system MUST provide `POST /scrape/submit` and `GET /scrape/jobs/{id}` endpoints following the same async job pattern as the script and audio APIs.
+- **FR-53:** The scrape result MUST include the extracted text, thumbnail URL, and character count.
 
 ### 5.10 Browser Cookie Job Tracking
 - **FR-33:** Both web UIs MUST store submitted job IDs in browser cookies (up to 20 per UI, 90-day expiry).

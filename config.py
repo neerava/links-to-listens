@@ -43,6 +43,13 @@ class Settings:
         "- Smooth storytelling flow (no rigid sections)\n"
         "- End with a reflective or interesting closing thought"
     )
+    ollama_metadata_prompt: str = (
+        "Extract a title and a 1-2 sentence description from the following article text. "
+        "The title must be a complete phrase (not cut off mid-sentence), max 80 characters. "
+        "The description must be 1-2 complete sentences, max 300 characters. "
+        "Respond ONLY with valid JSON in this exact format, no other text:\n"
+        '{"title": "...", "description": "..."}\n\n---\n\n'
+    )
     tts_engine: str = "vibevoice"
     tts_voice: str = "default"
     tts_voice_sample: str = ""  # path to a reference WAV for voice cloning (24kHz mono)
@@ -50,6 +57,7 @@ class Settings:
     tts_cfg_scale: float = 1.3  # classifier-free guidance; 1.2–1.5 typical; higher = stronger voice match
     tts_mp3_bitrate: int = 192  # MP3 bitrate in kbps; 256 or 320 for higher fidelity
     tts_use_float32: bool = False  # if True, use float32 on MPS/CUDA (better quality, ~2x memory)
+    tts_timeout_sec: int = 1800  # max seconds per TTS synthesis call (default 30 minutes)
     scrape_timeout_sec: int = 15
     output_dir: str = "./output"
     web_port: int = 8080
